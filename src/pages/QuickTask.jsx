@@ -1948,17 +1948,7 @@ export default function QuickTask() {
                             <option value="no">No</option>
                           </select>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sunday Enabled</label>
-                          <select
-                            value={editFormData.enable_sunday ? 'yes' : 'no'}
-                            onChange={(e) => handleInputChange('enable_sunday', e.target.value === 'yes')}
-                            className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs font-semibold"
-                          >
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                          </select>
-                        </div>
+
                       </div>
                     </>
                   )}
