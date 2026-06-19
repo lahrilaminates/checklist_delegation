@@ -128,7 +128,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
   // Download template logic
   const handleDownloadTemplate = () => {
     let headers = [];
-    let exampleRow = [];
+    let rows = [];
 
     if (selectedModule === "checklist") {
       headers = [
@@ -141,20 +141,22 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         "Time (HH:MM)",
         "Duration (MIN)",
         "Enable Reminders (Yes/No)",
-        "Require Attachment (Yes/No)"
+        "Require Attachment (Yes/No)",
+        "Enable Sunday (Yes/No)"
       ];
-      exampleRow = [
+      rows = FREQUENCY_OPTIONS.map((freq) => [
         dbDepartments[0] || "Sales",
         dbAssigners[0] || "Admin",
         dbUsers[0]?.user_name || "John Doe",
-        "Clean the display rack daily",
-        "Daily",
+        `Clean the display rack (${freq})`,
+        freq,
         new Date().toISOString().split('T')[0],
         "09:00",
         "30",
         "Yes",
-        "No"
-      ];
+        "No",
+        "Yes"
+      ]);
     } else {
       headers = [
         "Department",
@@ -165,24 +167,28 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         "Time (HH:MM)",
         "Duration (MIN)",
         "Enable Reminders (Yes/No)",
-        "Require Attachment (Yes/No)"
+        "Require Attachment (Yes/No)",
+        "Enable Sunday (Yes/No)"
       ];
-      exampleRow = [
-        dbDepartments[0] || "Sales",
-        dbAssigners[0] || "Admin",
-        dbUsers[0]?.user_name || "John Doe",
-        "Submit weekly audit report",
-        new Date().toISOString().split('T')[0],
-        "10:00",
-        "60",
-        "Yes",
-        "Yes"
+      rows = [
+        [
+          dbDepartments[0] || "Sales",
+          dbAssigners[0] || "Admin",
+          dbUsers[0]?.user_name || "John Doe",
+          "Submit weekly audit report",
+          new Date().toISOString().split('T')[0],
+          "10:00",
+          "60",
+          "Yes",
+          "Yes",
+          "Yes"
+        ]
       ];
     }
 
     const csvContent = Papa.unparse({
       fields: headers,
-      data: [exampleRow]
+      data: rows
     });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -263,10 +269,10 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
     // Verify Headers using cleaned row keys
     const expectedHeaders = selectedModule === "checklist" ? [
       "Department", "Assign From", "Doer Name", "Task Description", "Frequency", 
-      "Planned Date (YYYY-MM-DD)", "Time (HH:MM)", "Duration (MIN)", "Enable Reminders (Yes/No)", "Require Attachment (Yes/No)"
+      "Planned Date (YYYY-MM-DD)", "Time (HH:MM)", "Duration (MIN)", "Enable Reminders (Yes/No)", "Require Attachment (Yes/No)", "Enable Sunday (Yes/No)"
     ] : [
       "Department", "Assign From", "Doer Name", "Task Description", 
-      "Planned Date (YYYY-MM-DD)", "Time (HH:MM)", "Duration (MIN)", "Enable Reminders (Yes/No)", "Require Attachment (Yes/No)"
+      "Planned Date (YYYY-MM-DD)", "Time (HH:MM)", "Duration (MIN)", "Enable Reminders (Yes/No)", "Require Attachment (Yes/No)", "Enable Sunday (Yes/No)"
     ];
 
     const actualHeaders = Object.keys(cleanedRows[0]);
@@ -342,6 +348,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
       const durationRaw = row["Duration (MIN)"] || "";
       const enableRemindersRaw = (row["Enable Reminders (Yes/No)"] || "").toLowerCase();
       const requireAttachmentRaw = (row["Require Attachment (Yes/No)"] || "").toLowerCase();
+      const enableSundayRaw = (row["Enable Sunday (Yes/No)"] || "").toLowerCase();
 
       // Basic presence check
       if (!department) newErrors.push(`Row ${rowNum}: Department is required.`);
@@ -387,8 +394,10 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         const isW = activeWorkingDays.has(dateStr);
         const isOneTime = selectedModule === "delegation" || frequencyRaw.toLowerCase() === "one time (no recurrence)" || frequencyRaw.toLowerCase() === "one-time";
         
-        if (isOneTime && (isH || !isW)) {
-          newErrors.push(`Row ${rowNum}: The selected date (${dateStr}) is a ${isH ? 'holiday' : 'non-working day'}. Please select a different working day.`);
+        const isSun = parsedDate.getDay() === 0;
+        const sundayDisabled = enableSundayRaw === "no" || enableSundayRaw === "false";
+        if (isOneTime && (isH || !isW || (sundayDisabled && isSun))) {
+          newErrors.push(`Row ${rowNum}: The selected date (${dateStr}) is a ${isH ? 'holiday' : (sundayDisabled && isSun) ? 'disabled Sunday' : 'non-working day'}. Please select a different working day.`);
         }
       }
 
@@ -425,6 +434,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
           duration: `${durationRaw} MIN`,
           enableReminders: enableRemindersRaw === "yes" || enableRemindersRaw === "true",
           requireAttachment: requireAttachmentRaw === "yes" || requireAttachmentRaw === "true",
+          enableSunday: enableSundayRaw !== "no" && enableSundayRaw !== "false",
           date: parsedDate,
           time: timeRaw,
           showCalendar: false,
@@ -490,10 +500,11 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
     const isWorkingDay = (d) => activeWorkingDays.has(getLocalDateString(d));
     const toLocalISO = (d) => `${getLocalDateString(d)}T${time}:00`;
     const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+    const isSunday = (d) => d.getDay() === 0;
 
     if (freqKey === "one-time") {
       const d = new Date(startDate);
-      if (isHoliday(d) || !isWorkingDay(d)) {
+      if (isHoliday(d) || !isWorkingDay(d) || (task.enableSunday === false && isSunday(d))) {
         return [];
       }
       dates.push(toLocalISO(d));
@@ -518,11 +529,11 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         return new Date(year, month, targetDate);
       };
 
-      if (!isHoliday(startDate) && isWorkingDay(startDate)) {
+      if (!isHoliday(startDate) && isWorkingDay(startDate) && !(task.enableSunday === false && isSunday(startDate))) {
         dates.push(toLocalISO(startDate));
       } else {
         let shifted = new Date(startDate);
-        while (shifted <= endDate && (isHoliday(shifted) || !isWorkingDay(shifted))) {
+        while (shifted <= endDate && (isHoliday(shifted) || !isWorkingDay(shifted) || (task.enableSunday === false && isSunday(shifted)))) {
           shifted.setDate(shifted.getDate() + 1);
         }
         if (shifted <= endDate) {
@@ -537,7 +548,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         let target = getNthDayOfWeekInMonth(currentMonth.getFullYear(), currentMonth.getMonth(), plannedDayOfWeek, targetWeekNum);
 
         if (target && target <= endDate) {
-          while (target <= endDate && (isHoliday(target) || !isWorkingDay(target))) {
+          while (target <= endDate && (isHoliday(target) || !isWorkingDay(target) || (task.enableSunday === false && isSunday(target)))) {
             target.setDate(target.getDate() + 1);
           }
           if (target <= endDate) {
@@ -553,7 +564,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
       const validDays = [];
       let d = new Date(startDate);
       while (d <= endDate) {
-        if (!isHoliday(d) && isWorkingDay(d)) validDays.push(new Date(d));
+        if (!isHoliday(d) && isWorkingDay(d) && !(task.enableSunday === false && isSunday(d))) validDays.push(new Date(d));
         d.setDate(d.getDate() + 1);
       }
       if (freqKey === 'daily') validDays.forEach(day => dates.push(toLocalISO(day)));
@@ -565,7 +576,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         attempts++;
 
         let target = new Date(current);
-        while (target <= endDate && (isHoliday(target) || !isWorkingDay(target))) {
+        while (target <= endDate && (isHoliday(target) || !isWorkingDay(target) || (task.enableSunday === false && isSunday(target)))) {
           target.setDate(target.getDate() + 1);
         }
 
@@ -600,6 +611,7 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         duration: t.duration,
         enableReminders: t.enableReminders,
         requireAttachment: t.requireAttachment,
+        enableSunday: t.enableSunday !== false,
         originalStartDate: t.originalStartDate,
         status: selectedModule === "checklist" ? null : "pending"
       }));

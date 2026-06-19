@@ -221,6 +221,7 @@ export const updateChecklistTaskApi = async (updatedTask, originalTask) => {
       instruction_attachment_url: updatedTask.instruction_attachment_url,
       instruction_attachment_type: updatedTask.instruction_attachment_type,
       remark: updatedTask.remark,
+      enable_sunday: updatedTask.enable_sunday ?? true,
       admin_done: false
     });
 
@@ -259,6 +260,7 @@ export const updateDelegationTaskApi = async (updatedTask, originalTask) => {
       require_attachment: updatedTask.require_attachment,
       instruction_attachment_url: updatedTask.instruction_attachment_url,
       instruction_attachment_type: updatedTask.instruction_attachment_type,
+      enable_sunday: updatedTask.enable_sunday ?? true,
       remarks: updatedTask.remarks
     });
 

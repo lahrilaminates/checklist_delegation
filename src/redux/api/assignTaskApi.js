@@ -175,6 +175,7 @@ export const pushAssignTaskApi = async (generatedTasks, targetTable = null) => {
       audio_url: task.audio_url || null,
       instruction_attachment_url: task.instruction_attachment_url || null,
       instruction_attachment_type: task.instruction_attachment_type || null,
+      enable_sunday: task.enableSunday ?? task.enable_sunday ?? true,
       status: targetTable === 'checklist' ? null : (task.status || 'pending')
     }));
 
@@ -213,6 +214,7 @@ export const pushAssignTaskApi = async (generatedTasks, targetTable = null) => {
       audio_url: task.audio_url || null,
       instruction_attachment_url: task.instruction_attachment_url || null,
       instruction_attachment_type: task.instruction_attachment_type || null,
+      enable_sunday: task.enableSunday ?? task.enable_sunday ?? true,
     };
 
     if (isOneTime) {

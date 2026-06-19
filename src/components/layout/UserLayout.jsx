@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import supabase from "../../SupabaseClient";
+import logo from "../../assets/lahrilaminates.png";
 import { Home, ClipboardList, CheckSquare, User as UserIcon, LogOut, Menu, X } from "lucide-react"
 
 const UserLayout = ({ children }) => {
@@ -101,10 +102,8 @@ const UserLayout = ({ children }) => {
             to={isAdmin ? "/admin/dashboard" : "/user/dashboard"}
             className="flex items-center gap-2 font-semibold text-green-700 dark:text-green-300"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-green-600 to-teal-600 text-white shadow-sm border border-green-200">
-              <CheckSquare className="h-5 w-5" />
-            </div>
-            <span>TaskDesk</span>
+            <img src={logo} alt="Lahri Laminates" className="h-8 w-auto object-contain max-w-[120px]" />
+            <span className="text-base font-bold tracking-tight text-green-800 dark:text-green-300 whitespace-nowrap">Task Desk</span>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
@@ -181,10 +180,8 @@ const UserLayout = ({ children }) => {
             className="flex items-center gap-2 font-semibold text-green-700 dark:text-green-300"
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-green-600 to-teal-600 text-white shadow-sm border border-green-200">
-              <CheckSquare className="h-5 w-5" />
-            </div>
-            <span>TaskDesk</span>
+            <img src={logo} alt="Lahri Laminates" className="h-8 w-auto object-contain max-w-[120px]" />
+            <span className="text-base font-bold tracking-tight text-green-800 dark:text-green-300 whitespace-nowrap">Task Desk</span>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2 bg-white dark:bg-gray-950">

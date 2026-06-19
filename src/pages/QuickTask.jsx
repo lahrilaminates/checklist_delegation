@@ -268,6 +268,7 @@ export default function QuickTask() {
         instruction_attachment_url: instructionUrls,
         instruction_attachment_type: instructionTypes,
         remark: task.remark || '',
+        enable_sunday: task.enable_sunday !== false,
         originalAudioUrl: task.audio_url || (isAudioUrl(task.task_description) ? task.task_description : null),
       });
     }
@@ -614,6 +615,7 @@ export default function QuickTask() {
         instruction_attachment_url: instructionUrls,
         instruction_attachment_type: instructionTypes,
         remark: task.remark || '',
+        enable_sunday: task.enable_sunday !== false,
         originalAudioUrl: task.audio_url || (isAudioUrl(task.task_description) ? task.task_description : null),
       });
       
@@ -683,7 +685,7 @@ export default function QuickTask() {
     });
   };
 
-  const generateRegeneratedDates = async (startDate, endDate, frequency, time = "09:00") => {
+  const generateRegeneratedDates = async (startDate, endDate, frequency, time = "09:00", enableSunday = true) => {
     const freqMap = {
         "One Time (No Recurrence)": "one-time",
         "Alternate Day": "alternate-day",
@@ -744,9 +746,12 @@ export default function QuickTask() {
     const toLocalISO = (d) => `${getLocalDateString(d)}T${time}:00`;
     const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
+    const isSunday = (d) => d.getDay() === 0;
+    const isDayExcluded = (d) => isHoliday(d) || !isWorkingDay(d) || (enableSunday === false && isSunday(d));
+
     if (freqKey === "one-time") {
         const d = new Date(start);
-        if (!isHoliday(d) && isWorkingDay(d)) {
+        if (!isHoliday(d) && isWorkingDay(d) && !(enableSunday === false && isSunday(d))) {
             dates.push(toLocalISO(d));
         }
         return dates;
@@ -773,11 +778,11 @@ export default function QuickTask() {
         };
 
         // First task is always the user's selected start date
-        if (!isHoliday(start) && isWorkingDay(start)) {
+        if (!isHoliday(start) && isWorkingDay(start) && !(enableSunday === false && isSunday(start))) {
             dates.push(toLocalISO(start));
         } else {
             let shifted = new Date(start);
-            while (shifted <= end && (isHoliday(shifted) || !isWorkingDay(shifted))) {
+            while (shifted <= end && isDayExcluded(shifted)) {
                 shifted.setDate(shifted.getDate() + 1);
             }
             if (shifted <= end) {
@@ -793,7 +798,7 @@ export default function QuickTask() {
             let target = getNthDayOfWeekInMonth(currentMonth.getFullYear(), currentMonth.getMonth(), plannedDayOfWeek, targetWeekNum);
 
             if (target && target <= end) {
-                while (target <= end && (isHoliday(target) || !isWorkingDay(target))) {
+                while (target <= end && isDayExcluded(target)) {
                     target.setDate(target.getDate() + 1);
                 }
                 if (target <= end) {
@@ -810,7 +815,7 @@ export default function QuickTask() {
         const validDays = [];
         let d = new Date(start);
         while (d <= end) {
-            if (!isHoliday(d) && isWorkingDay(d)) validDays.push(new Date(d));
+            if (!isHoliday(d) && isWorkingDay(d) && !(enableSunday === false && isSunday(d))) validDays.push(new Date(d));
             d.setDate(d.getDate() + 1);
         }
         if (freqKey === 'daily') validDays.forEach(day => dates.push(toLocalISO(day)));
@@ -822,7 +827,7 @@ export default function QuickTask() {
             attempts++;
 
             let target = new Date(current);
-            while (target <= end && (isHoliday(target) || !isWorkingDay(target))) {
+            while (target <= end && isDayExcluded(target)) {
                 target.setDate(target.getDate() + 1);
             }
 
@@ -909,7 +914,9 @@ export default function QuickTask() {
       const dates = await generateRegeneratedDates(
         regenerateFormData.task_start_date,
         regenerateFormData.planned_date,
-        regenerateFormData.frequency
+        regenerateFormData.frequency,
+        "09:00",
+        regenerateFormData.enable_sunday !== false
       );
 
       if (dates.length === 0) {
@@ -952,6 +959,7 @@ export default function QuickTask() {
         duration: regenerateFormData.duration || null,
         enableReminders: regenerateFormData.enable_reminder === "yes",
         requireAttachment: regenerateFormData.require_attachment === "yes",
+        enableSunday: regenerateFormData.enable_sunday !== false,
         dueDate,
         originalStartDate: `${regenerateFormData.task_start_date}T09:00:00`,
         status: null
@@ -1917,7 +1925,7 @@ export default function QuickTask() {
                           className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm font-medium focus:border-purple-400 outline-none transition-all"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Reminder</label>
                           <select
@@ -1934,6 +1942,17 @@ export default function QuickTask() {
                           <select
                             value={editFormData.require_attachment || ''}
                             onChange={(e) => handleInputChange('require_attachment', e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs font-semibold"
+                          >
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sunday Enabled</label>
+                          <select
+                            value={editFormData.enable_sunday ? 'yes' : 'no'}
+                            onChange={(e) => handleInputChange('enable_sunday', e.target.value === 'yes')}
                             className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs font-semibold"
                           >
                             <option value="yes">Yes</option>
@@ -2230,7 +2249,7 @@ export default function QuickTask() {
                       className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm font-medium focus:border-purple-400 outline-none transition-all"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Reminder</label>
                       <select
@@ -2247,6 +2266,17 @@ export default function QuickTask() {
                       <select
                         value={regenerateFormData.require_attachment || ''}
                         onChange={(e) => handleRegenerateInputChange('require_attachment', e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs font-semibold"
+                      >
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sunday Enabled</label>
+                      <select
+                        value={regenerateFormData.enable_sunday !== false ? 'yes' : 'no'}
+                        onChange={(e) => handleRegenerateInputChange('enable_sunday', e.target.value === 'yes')}
                         className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs font-semibold"
                       >
                         <option value="yes">Yes</option>

@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchNotifications } from "../../redux/slice/notificationSlice";
 import supabase from "../../SupabaseClient";
+import logo from "../../assets/lahrilaminates.png";
 import {
   CheckSquare,
   ClipboardList,
@@ -348,10 +349,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode, showLa
             to="/dashboard/admin"
             className="flex items-center gap-2 font-semibold text-blue-700"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-600 to-purple-600 text-white shadow-sm border border-blue-200">
-              <CheckSquare className="h-5 w-5" />
-            </div>
-            <span>TaskDesk</span>
+            <img src={logo} alt="Lahri Laminates" className="h-8 w-auto object-contain max-w-[120px]" />
+            <span className="text-base font-bold tracking-tight text-blue-800 whitespace-nowrap">Task Desk</span>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
@@ -541,10 +540,8 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode, showLa
                 className="flex items-center gap-2 font-semibold text-blue-700"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-600 to-purple-600 text-white shadow-sm border border-blue-200">
-                  <CheckSquare className="h-5 w-5" />
-                </div>
-                <span>TaskDesk</span>
+                <img src={logo} alt="Lahri Laminates" className="h-8 w-auto object-contain max-w-[120px]" />
+                <span className="text-base font-bold tracking-tight text-blue-800 whitespace-nowrap">Task Desk</span>
               </Link>
             </div>
             <nav className="flex-1 overflow-y-auto p-2 bg-white">
