@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@keyframes toast-slide-in {
+    0% {
+        transform: translateX(120%) scale(0.9);
+        opacity: 0;
+    }
+
+    70% {
+        transform: translateX(-5%) scale(1.02);
+    }
+
+    100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-slide-out {
+    0% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(120%) scale(0.9);
+        opacity: 0;
+    }
+}
+
+.animate-toast-slide-in {
+    animation: toast-slide-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-toast-slide-out {
+    animation: toast-slide-out 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
+
+.gradient-bg {
+    background: linear-gradient(to right, #9333EA, #DB2777);
+}
+
+.gradient-bg2 {
+    background: linear-gradient(to right, #f10303, #f4cedf);
+}
+
+.gradient-bg:hover {
+    background: linear-gradient(to right, #7E22CE, #BE185D);
+}
+
+/* Improve scrolling performance for large tables */
+.h-\[calc\(100vh-250px\)\] {
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Ensure smooth scrolling */
+.h-\[calc\(100vh-250px\)\]::-webkit-scrollbar {
+    width: 8px;
+}
+
+.h-\[calc\(100vh-250px\)\]::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.h-\[calc\(100vh-250px\)\]::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
