@@ -144,19 +144,21 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
         "Require Attachment (Yes/No)",
         "Enable Sunday (Yes/No)"
       ];
-      rows = FREQUENCY_OPTIONS.map((freq) => [
-        dbDepartments[0] || "Sales",
-        dbAssigners[0] || "Admin",
-        dbUsers[0]?.user_name || "John Doe",
-        `Clean the display rack (${freq})`,
-        freq,
-        new Date().toISOString().split('T')[0],
-        "09:00",
-        "30",
-        "Yes",
-        "No",
-        "Yes"
-      ]);
+      rows = [
+        [
+          dbDepartments[0] || "Sales",
+          dbAssigners[0] || "Admin",
+          dbUsers[0]?.user_name || "John Doe",
+          "Clean the display rack",
+          FREQUENCY_OPTIONS.join(" , "),
+          new Date().toISOString().split('T')[0],
+          "09:00",
+          "30",
+          "Yes",
+          "No",
+          "No"
+        ]
+      ];
     } else {
       headers = [
         "Department",
@@ -804,7 +806,9 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
                             <td className="p-2 text-gray-500 whitespace-nowrap font-medium">e.g. John Doe</td>
                             <td className="p-2 text-gray-400 font-medium">Instructions...</td>
                             {selectedModule === "checklist" && (
-                              <td className="p-2 text-purple-600 font-bold whitespace-nowrap">Daily / Weekly / Monthly</td>
+                              <td className="p-2 text-purple-600 font-bold" style={{maxWidth: '220px', wordBreak: 'break-word'}}>
+                                {FREQUENCY_OPTIONS.join(" , ")}
+                              </td>
                             )}
                             <td className="p-2 text-gray-500 whitespace-nowrap font-medium">YYYY-MM-DD</td>
                             <td className="p-2 text-gray-500 whitespace-nowrap font-medium">HH:MM (e.g. 09:00)</td>

@@ -45,7 +45,7 @@ const defaultTask = () => ({
     recordedAudio: null,
     showCalendar: false,
     references: [],
-    enableSunday: true,
+    enableSunday: false,
 });
 
 // --- AUDIO UTILITIES ---
