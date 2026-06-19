@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from 'date-fns';
-import { Search, ChevronDown, Filter, Trash2, Edit, Save, X, Play, Pause, Mic, Square, Loader2, Plus, RefreshCw } from "lucide-react";
+import { Search, ChevronDown, Filter, Trash2, Edit, Save, X, Play, Pause, Mic, Square, Loader2, Plus, RefreshCw, Users } from "lucide-react";
 import AdminLayout from "../components/layout/AdminLayout";
 import DelegationPage from "./delegation-data";
 import { useDispatch, useSelector } from "react-redux";
@@ -81,6 +81,8 @@ export default function QuickTask() {
   const [searchTerm, setSearchTerm] = useState('');
   const [freqFilter, setFreqFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState('all');
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -1017,23 +1019,27 @@ export default function QuickTask() {
 
   const filteredDelegationTasks = useMemo(() => {
     const seen = new Set();
-    // Apply client-side search filter across description AND name
     const searched = delegationTasks.filter(task => {
-      if (!searchTerm) return true;
-      const term = searchTerm.toLowerCase();
-      return (
-        (task.task_description || '').toLowerCase().includes(term) ||
-        (task.name || '').toLowerCase().includes(term)
-      );
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        if (!((task.task_description || '').toLowerCase().includes(term) || (task.name || '').toLowerCase().includes(term))) return false;
+      }
+      if (userFilter !== 'all' && (task.name || '').toLowerCase() !== userFilter.toLowerCase()) return false;
+      if (dateFilter !== 'all') {
+        const ts = getTimeStatus(task.task_start_date || task.planned_date || task.created_at, task.status);
+        if (dateFilter === 'overdue' && ts !== 'Overdue') return false;
+        if (dateFilter === 'today' && ts !== 'Today') return false;
+        if (dateFilter === 'upcoming' && ts !== 'Upcoming') return false;
+      }
+      return true;
     });
-    // Deduplicate strictly by task_description + name (API already deduped, this is a safety net)
     return searched.filter(task => {
       const key = `${(task.department || '').trim()}::${(task.task_description || '').trim()}::${(task.name || '').trim()}::${(task.frequency || '').trim()}::${(task.task_start_date || task.created_at || '').trim()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [delegationTasks, searchTerm]);
+  }, [delegationTasks, searchTerm, userFilter, dateFilter]);
 
   // Keep allFrequencies as is (or modify if you want to fetch frequencies from elsewhere)
   const allFrequencies = useMemo(() => {
@@ -1052,16 +1058,20 @@ export default function QuickTask() {
 
   const filteredChecklistTasks = useMemo(() => {
     const seen = new Set();
-    // Apply client-side search filter across description AND name
     const searched = quickTask.filter(task => {
-      if (!searchTerm) return true;
-      const term = searchTerm.toLowerCase();
-      return (
-        (task.task_description || '').toLowerCase().includes(term) ||
-        (task.name || '').toLowerCase().includes(term)
-      );
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        if (!((task.task_description || '').toLowerCase().includes(term) || (task.name || '').toLowerCase().includes(term))) return false;
+      }
+      if (userFilter !== 'all' && (task.name || '').toLowerCase() !== userFilter.toLowerCase()) return false;
+      if (dateFilter !== 'all') {
+        const ts = getTimeStatus(task.task_start_date || task.planned_date || task.created_at, task.status);
+        if (dateFilter === 'overdue' && ts !== 'Overdue') return false;
+        if (dateFilter === 'today' && ts !== 'Today') return false;
+        if (dateFilter === 'upcoming' && ts !== 'Upcoming') return false;
+      }
+      return true;
     });
-    // Deduplicate strictly by task_description + name (API already deduped, this is a safety net)
     const unique = searched.filter(task => {
       const key = `${(task.department || '').trim()}::${(task.task_description || '').trim()}::${(task.name || '').trim()}::${(task.frequency || '').trim()}::${(task.created_at || '').trim()}`;
       if (seen.has(key)) return false;
@@ -1069,7 +1079,6 @@ export default function QuickTask() {
       return true;
     });
 
-    // Sort by sortConfig or default to task_start_date ascending
     return [...unique].sort((a, b) => {
       if (sortConfig.key) {
         const valA = a[sortConfig.key];
@@ -1082,17 +1091,21 @@ export default function QuickTask() {
       const dateB = new Date(b.task_start_date || 0);
       return dateA - dateB;
     });
-  }, [quickTask, sortConfig, searchTerm]);
+  }, [quickTask, sortConfig, searchTerm, userFilter, dateFilter]);
 
   const filteredMaintenance = useMemo(() => {
-    // Search filter
-    const searched = maintenance.filter(task =>
-      !searchTerm ||
-      task.task_description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const searched = maintenance.filter(task => {
+      if (searchTerm && !(task.task_description?.toLowerCase().includes(searchTerm.toLowerCase()) || task.name?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
+      if (userFilter !== 'all' && (task.name || '').toLowerCase() !== userFilter.toLowerCase()) return false;
+      if (dateFilter !== 'all') {
+        const ts = getTimeStatus(task.task_start_date || task.created_at, task.status);
+        if (dateFilter === 'overdue' && ts !== 'Overdue') return false;
+        if (dateFilter === 'today' && ts !== 'Today') return false;
+        if (dateFilter === 'upcoming' && ts !== 'Upcoming') return false;
+      }
+      return true;
+    });
 
-    // Deduplicate by task_description + name
     const seen = new Set();
     const unique = searched.filter(task => {
       const key = `${(task.machine_name || '').trim()}::${(task.part_name || '').trim()}::${(task.part_area || '').trim()}::${(task.task_description || '').trim()}::${(task.name || '').trim()}::${(task.freq || task.frequency || '').trim()}::${(task.task_start_date || task.created_at || '').trim()}`;
@@ -1101,13 +1114,12 @@ export default function QuickTask() {
       return true;
     });
 
-    // Sort by task_start_date ascending
     return [...unique].sort((a, b) => {
       const dateA = new Date(a.task_start_date || 0);
       const dateB = new Date(b.task_start_date || 0);
       return dateA - dateB;
     });
-  }, [maintenance, searchTerm]);
+  }, [maintenance, searchTerm, userFilter, dateFilter]);
 
 
 
@@ -1204,17 +1216,92 @@ export default function QuickTask() {
             </div>
           </div>
 
-          <div className="flex items-center mt-2">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {/* Search */}
+            <div className="relative flex-grow min-w-[180px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
                 type="text"
                 placeholder="Search by task or name..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+
+            {/* User Filter Dropdown */}
+            {activeTab !== 'maintenance' && (
+              <div className="relative">
+                <button
+                  onClick={() => setUserDropdownOpen(p => !p)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-sm ${
+                    userFilter !== 'all'
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span>{userFilter === 'all' ? 'All Users' : userFilter}</span>
+                  <ChevronDown size={13} className={`transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {userDropdownOpen && (
+                  <div className="absolute z-50 mt-1.5 w-48 left-0 rounded-xl bg-white shadow-xl border border-gray-100 py-1 max-h-60 overflow-y-auto">
+                    <button
+                      onClick={() => { setUserFilter('all'); setUserDropdownOpen(false); }}
+                      className={`block w-full text-left px-4 py-2 text-xs font-bold transition-colors ${
+                        userFilter === 'all' ? 'bg-purple-50 text-purple-700 border-l-2 border-purple-500' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >All Users</button>
+                    {[...new Set(
+                      (activeTab === 'checklist' ? quickTask : delegationTasks)
+                        .map(t => t.name)
+                        .filter(Boolean)
+                    )].sort().map(name => (
+                      <button
+                        key={name}
+                        onClick={() => { setUserFilter(name); setUserDropdownOpen(false); }}
+                        className={`block w-full text-left px-4 py-2 text-xs font-bold transition-colors ${
+                          userFilter === name ? 'bg-purple-50 text-purple-700 border-l-2 border-purple-500' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >{name}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Task Date Status Filter Pills */}
+            <div className="flex items-center gap-1">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'overdue', label: 'Overdue' },
+                { id: 'today', label: 'Today' },
+                { id: 'upcoming', label: 'Upcoming' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setDateFilter(f.id)}
+                  className={`px-3 py-1.5 text-[11px] font-black rounded-xl border transition-all ${
+                    dateFilter === f.id
+                      ? f.id === 'overdue' ? 'bg-red-500 text-white border-red-500'
+                        : f.id === 'today' ? 'bg-green-500 text-white border-green-500'
+                        : f.id === 'upcoming' ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}
+                >{f.label}</button>
+              ))}
+            </div>
+
+            {/* Clear filters */}
+            {(userFilter !== 'all' || dateFilter !== 'all' || searchTerm) && (
+              <button
+                onClick={() => { setUserFilter('all'); setDateFilter('all'); setSearchTerm(''); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black text-red-500 rounded-xl border border-red-100 hover:bg-red-50 transition-all"
+              >
+                <X size={11} /> Clear
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1278,6 +1365,7 @@ export default function QuickTask() {
                         { key: 'duration', label: 'Duration' },
                         { key: 'enable_reminder', label: 'Reminders' },
                         { key: 'require_attachment', label: 'Attachment' },
+                        { key: 'enable_sunday', label: 'Sunday' },
                         { key: 'remarks', label: 'Remarks' },
                       ].map((column) => (
                         <th
@@ -1387,6 +1475,14 @@ export default function QuickTask() {
                           {/* Require Attachment */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <span className="capitalize">{task.require_attachment || "—"}</span>
+                          </td>
+
+                          {/* Enable Sunday */}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {task.enable_sunday === false
+                              ? <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 text-gray-500 border border-gray-200">✗ Off</span>
+                              : <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-green-100 text-green-700 border border-green-200">✓ On</span>
+                            }
                           </td>
 
                           {/* Remarks */}

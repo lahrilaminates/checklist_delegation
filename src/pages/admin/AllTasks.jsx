@@ -387,6 +387,7 @@ const AllTasks = () => {
             { id: "frequency", label: "Freq" },
             { id: "enable_reminder", label: "Remind" },
             { id: "require_attachment", label: "Attach" },
+            { id: "enable_sunday", label: "Sunday" },
             { id: "status", label: "Status" },
           ];
           break;
@@ -1411,7 +1412,7 @@ const AllTasks = () => {
                             ) : (
                               <>
                                 {tableHeaders.map((header) => (
-                                  <td key={header.id} className={`px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-800 ${header.id === 'task_description' || header.id === 'issue_description' ? 'min-w-[200px] whitespace-normal' : 'whitespace-nowrap'}`}>
+                                  <td key={header.id} className={`px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-800 ${header.id === 'task_description' || header.id === 'issue_description' ? 'min-w-[200px] whitespace-normal' : header.id === 'status' ? 'min-w-[180px] whitespace-nowrap' : 'whitespace-nowrap'}`}>
                                     {header.id === "time_status"
                                       ? (
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getTimeStatus(task[statusDateColumn], task.status) === 'Overdue' ? 'bg-red-100 text-red-800' :
@@ -1481,12 +1482,17 @@ const AllTasks = () => {
                                                   {activeTab === "ea" && showHistory
                                                     ? (task[header.id]?.toLowerCase() === "approved" || (task[header.id]?.toLowerCase() === "done" && task.admin_done) ? "Completed" : task[header.id]?.toLowerCase() === "done" ? "Pending Approval" : (task[header.id]?.toLowerCase() === "extended" || task[header.id]?.toLowerCase() === "extend") ? "Extended" : task[header.id])
                                                     : (showHistory && (task[header.id] === "Done" || task[header.id] === "yes" || task[header.id] === "done" || task[header.id] === "Completed") && !task.admin_done)
-                                                      ? "Pending Approval"
+                          ? "Pending Approval"
                                                       : (showHistory && (task[header.id] === "Done" || task[header.id] === "yes" || task[header.id] === "done" || task[header.id] === "Completed") && task.admin_done)
                                                         ? "Approved"
                                                         : task[header.id]}
                                                 </span>
                                               )
+                                            : header.id === "enable_sunday"
+                                              ? (task[header.id] === false
+                                                  ? <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 text-gray-500 border border-gray-200">✗ Off</span>
+                                                  : <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-green-100 text-green-700 border border-green-200">✓ On</span>
+                                                )
                                             : (header.id === "enable_reminders" || header.id === "require_attachment" || header.id === "enable_reminder" || header.id === "attachment")
                                               ? (task[header.id] ? "Yes" : "No")
                                               : (header.id === 'name' || header.id === 'assigned_person' || header.id === 'doer_name')
@@ -1642,7 +1648,7 @@ const AllTasks = () => {
                 )}
 
                 {/* Mobile view Cards */}
-                <div className="md:hidden space-y-4 p-4 bg-gray-50/50 pb-24">
+                <div className="md:hidden space-y-4 p-3 bg-gray-50/50 pb-24 overflow-hidden">
                   {paginatedTasks.length > 0 ? (
                     paginatedTasks.map((task, index) => {
                       const currentStatus = getTimeStatus(task[statusDateColumn], task.status);
@@ -1707,7 +1713,7 @@ const AllTasks = () => {
                                     value={statusData[task.id] || task.status || ""}
                                     onChange={(e) => setStatusData(prev => ({ ...prev, [task.id]: e.target.value }))}
                                     disabled={!selectedItems.has(task.id)}
-                                    className="w-full text-xs border-gray-200 rounded-md py-1 focus:ring-purple-400"
+                                    className="w-full text-xs border border-gray-200 rounded-md py-1 px-2 focus:outline-none focus:ring-1 focus:ring-purple-400"
                                   >
                                     <option value="">Status</option>
                                     {activeTab === "ea" ? (
