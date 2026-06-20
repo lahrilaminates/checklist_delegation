@@ -298,7 +298,19 @@ export default function AllTaskReport() {
           });
         }
 
-        setChecklistTasks(dateFiltered);
+        // Deduplicate fetched tasks using their unique ID
+        // For tasks from different tables, we use a composite key `_type + id`
+        const uniqueTasksMap = new Map();
+        dateFiltered.forEach(task => {
+          if (task.id) {
+            uniqueTasksMap.set(`${task._type}-${task.id}`, task);
+          } else {
+            uniqueTasksMap.set(JSON.stringify(task), task);
+          }
+        });
+        const deduplicatedTasks = Array.from(uniqueTasksMap.values());
+
+        setChecklistTasks(deduplicatedTasks);
       } catch (err) {
         console.error("Error fetching tasks:", err);
       } finally {
