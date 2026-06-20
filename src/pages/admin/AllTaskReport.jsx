@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import supabase from "../../SupabaseClient";
 import { 
@@ -37,6 +37,7 @@ export default function AllTaskReport() {
   const [selectedType, setSelectedType] = useState("All");
   const [selectedFrequency, setSelectedFrequency] = useState("All");
   const [activeDetailTask, setActiveDetailTask] = useState(null);
+  const [activeTab, setActiveTab] = useState("matrix");
 
   // Set default current month in format YYYY-MM and date YYYY-MM-DD
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function AllTaskReport() {
 
   // Fetch checklist tasks for the selected staff, month, and type
   useEffect(() => {
-    if (!selectedStaff || (dateFilterMode === "month" && !selectedMonth) || (dateFilterMode === "date" && !selectedDate)) return;
+    if ((activeTab === "matrix" && !selectedStaff) || (dateFilterMode === "month" && !selectedMonth) || (dateFilterMode === "date" && !selectedDate)) return;
 
     const fetchTasks = async () => {
       setIsLoading(true);
@@ -224,40 +225,31 @@ export default function AllTaskReport() {
         let fetchedTasks = [];
 
         if (selectedType === "All" || selectedType === "Checklist") {
-          const data = await fetchAllWithPagination(() => 
-            supabase.from("checklist").select("*")
-              .eq("name", selectedStaff)
-              .gte("planned_date", startISO)
-              .lte("planned_date", endISO)
-          );
+          const data = await fetchAllWithPagination(() => {
+            let q = supabase.from("checklist").select("*").gte("planned_date", startISO).lte("planned_date", endISO);
+            return activeTab === "summary" ? q.in("name", staffList) : q.eq("name", selectedStaff);
+          });
           fetchedTasks = [...fetchedTasks, ...normalizeChecklist(data)];
         }
 
         if (selectedType === "All" || selectedType === "Delegation") {
-          const data = await fetchAllWithPagination(() => 
-            supabase.from("delegation").select("*")
-              .eq("name", selectedStaff)
-              .gte("planned_date", startISO)
-              .lte("planned_date", endISO)
-          );
+          const data = await fetchAllWithPagination(() => {
+            let q = supabase.from("delegation").select("*").gte("planned_date", startISO).lte("planned_date", endISO);
+            return activeTab === "summary" ? q.in("name", staffList) : q.eq("name", selectedStaff);
+          });
           fetchedTasks = [...fetchedTasks, ...normalizeDelegation(data)];
         }
 
         if (selectedType === "All" || selectedType === "Maintenance") {
-          const data = await fetchAllWithPagination(() => 
-            supabase.from("maintenance_tasks").select("*")
-              .eq("name", selectedStaff)
-              .gte("planned_date", startISO)
-              .lte("planned_date", endISO)
-          );
+          const data = await fetchAllWithPagination(() => {
+            let q = supabase.from("maintenance_tasks").select("*").gte("planned_date", startISO).lte("planned_date", endISO);
+            return activeTab === "summary" ? q.in("name", staffList) : q.eq("name", selectedStaff);
+          });
 
-          const dataByStart = await fetchAllWithPagination(() => 
-            supabase.from("maintenance_tasks").select("*")
-              .eq("name", selectedStaff)
-              .is("planned_date", null)
-              .gte("task_start_date", startISO)
-              .lte("task_start_date", endISO)
-          );
+          const dataByStart = await fetchAllWithPagination(() => {
+            let q = supabase.from("maintenance_tasks").select("*").is("planned_date", null).gte("task_start_date", startISO).lte("task_start_date", endISO);
+            return activeTab === "summary" ? q.in("name", staffList) : q.eq("name", selectedStaff);
+          });
 
           const combinedMaintenance = [...(data || []), ...(dataByStart || [])];
           const uniqueMaintenance = Array.from(new Map(combinedMaintenance.map(item => [item.id, item])).values());
@@ -265,22 +257,18 @@ export default function AllTaskReport() {
         }
 
         if (selectedType === "All" || selectedType === "EA Task") {
-          const data = await fetchAllWithPagination(() => 
-            supabase.from("ea_tasks").select("*")
-              .eq("doer_name", selectedStaff)
-              .gte("planned_date", startISO)
-              .lte("planned_date", endISO)
-          );
+          const data = await fetchAllWithPagination(() => {
+            let q = supabase.from("ea_tasks").select("*").gte("planned_date", startISO).lte("planned_date", endISO);
+            return activeTab === "summary" ? q.in("doer_name", staffList) : q.eq("doer_name", selectedStaff);
+          });
           fetchedTasks = [...fetchedTasks, ...normalizeEATask(data)];
         }
 
         if (selectedType === "All" || selectedType === "Repair") {
-          const data = await fetchAllWithPagination(() => 
-            supabase.from("repair_tasks").select("*")
-              .eq("assigned_person", selectedStaff)
-              .gte("created_at", startISO)
-              .lte("created_at", endISO)
-          );
+          const data = await fetchAllWithPagination(() => {
+            let q = supabase.from("repair_tasks").select("*").gte("created_at", startISO).lte("created_at", endISO);
+            return activeTab === "summary" ? q.in("assigned_person", staffList) : q.eq("assigned_person", selectedStaff);
+          });
           fetchedTasks = [...fetchedTasks, ...normalizeRepairTask(data)];
         }
 
@@ -319,7 +307,7 @@ export default function AllTaskReport() {
     };
 
     fetchTasks();
-  }, [selectedStaff, selectedMonth, selectedDate, dateFilterMode, selectedType]);
+  }, [selectedStaff, selectedMonth, selectedDate, dateFilterMode, selectedType, activeTab, staffList]);
 
   // Helper to parse dates and return accurate ISO year and week number info timezone-safely
   const getISOWeekIdentifier = (dateString) => {
@@ -455,7 +443,7 @@ export default function AllTaskReport() {
   }, [checklistTasks, selectedFrequency]);
 
   // Rendering cell status pill
-  const renderCellStatus = (task, colKey) => {
+  const renderCellStatus = (task, colKey, displayType = "count") => {
     if (task.colKey !== colKey) return <span className="text-gray-300">—</span>;
 
     const { completedCount, totalCount, percentDone } = task;
@@ -467,8 +455,8 @@ export default function AllTaskReport() {
     }
 
     return (
-      <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
-        {completedCount}/{totalCount}
+      <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
+        {displayType === "count" ? <span>{completedCount}/{totalCount}</span> : <span>{percentDone}%</span>}
       </div>
     );
   };
@@ -496,15 +484,35 @@ export default function AllTaskReport() {
     }
 
     return (
-      <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
-        {completedCount}/{totalCount}
+      <div className={`inline-flex flex-col items-center justify-center px-2 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
+        <span>{completedCount}/{totalCount}</span>
+        <span className="text-[9px] opacity-80">{percentDone}%</span>
       </div>
     );
   };
 
-  // Calculate column totals for exact task numbers per week
-  const weekTotals = useMemo(() => {
-    const totals = {};
+  // Calculate column totals for exact task numbers per week, plus D, W, M
+  const columnTotals = useMemo(() => {
+    const totals = {
+      day: { scheduled: 0, completed: 0 },
+      week: { scheduled: 0, completed: 0 },
+      month: { scheduled: 0, completed: 0 }
+    };
+
+    // Calculate overall D, W, M aggregates based on the row's designated frequency
+    taskMatrixData.forEach(task => {
+      if (task.colKey === "day") {
+        totals.day.scheduled += task.totalCount;
+        totals.day.completed += task.completedCount;
+      } else if (task.colKey === "week") {
+        totals.week.scheduled += task.totalCount;
+        totals.week.completed += task.completedCount;
+      } else if (task.colKey === "month") {
+        totals.month.scheduled += task.totalCount;
+        totals.month.completed += task.completedCount;
+      }
+    });
+
     uniqueWeeks.forEach(weekKey => {
       let scheduled = 0;
       let completed = 0;
@@ -520,6 +528,53 @@ export default function AllTaskReport() {
     });
     return totals;
   }, [taskMatrixData, uniqueWeeks]);
+
+  // Aggregate stats for all staff members (used in Summary Tab)
+  const staffSummaryData = useMemo(() => {
+    if (activeTab !== "summary") return [];
+    
+    // Group by staff name
+    const staffMap = {};
+    staffList.forEach(name => {
+      staffMap[name] = {
+        name,
+        day: { scheduled: 0, completed: 0 },
+        week: { scheduled: 0, completed: 0 },
+        month: { scheduled: 0, completed: 0 },
+        overall: { scheduled: 0, completed: 0 },
+      };
+    });
+
+    checklistTasks.forEach(task => {
+      const staffName = parseJsonIfNeeded(task.name || task.doer_name || task.assigned_person) || "";
+      if (!staffName || !staffMap[staffName]) return;
+
+      const freqCol = getFrequencyColumn(task.frequency);
+      
+      const statusLower = task.status?.toLowerCase() || "";
+      const isCompleted = task.submission_date !== null || 
+                          statusLower === "yes" || 
+                          statusLower === "done" || 
+                          statusLower === "completed" || 
+                          statusLower === "approved";
+
+      staffMap[staffName].overall.scheduled += 1;
+      if (isCompleted) staffMap[staffName].overall.completed += 1;
+
+      if (freqCol === "day") {
+        staffMap[staffName].day.scheduled += 1;
+        if (isCompleted) staffMap[staffName].day.completed += 1;
+      } else if (freqCol === "week") {
+        staffMap[staffName].week.scheduled += 1;
+        if (isCompleted) staffMap[staffName].week.completed += 1;
+      } else if (freqCol === "month") {
+        staffMap[staffName].month.scheduled += 1;
+        if (isCompleted) staffMap[staffName].month.completed += 1;
+      }
+    });
+
+    return Object.values(staffMap).sort((a, b) => a.name.localeCompare(b.name));
+  }, [checklistTasks, activeTab, staffList]);
 
   return (
     <AdminLayout>
@@ -542,10 +597,35 @@ export default function AllTaskReport() {
           </div>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex border-b border-gray-200 gap-6">
+          <button
+            onClick={() => setActiveTab("matrix")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "matrix" 
+                ? "border-purple-600 text-purple-700" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Task Matrix
+          </button>
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "summary" 
+                ? "border-purple-600 text-purple-700" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Staff Summary
+          </button>
+        </div>
+
         {/* Filter Section (Plain layout, top-left aligned, direct view) */}
         <div className="flex flex-wrap items-center gap-4 pb-2">
-          {/* Staff Selector */}
-          <div className="w-full sm:w-60">
+          {/* Staff Selector - Hidden in Summary Tab */}
+          {activeTab !== "summary" && (
+            <div className="w-full sm:w-60">
             <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
               Staff Selection
             </label>
@@ -571,6 +651,7 @@ export default function AllTaskReport() {
               <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
             </div>
           </div>
+          )}
 
           {/* Period Selection Mode */}
           <div className="w-full sm:w-48">
@@ -676,6 +757,86 @@ export default function AllTaskReport() {
                 <Loader2 className="animate-spin h-8 w-8 text-purple-600" />
                 <p className="text-xs font-bold text-gray-500">Fetching checklist entries...</p>
               </div>
+            ) : activeTab === "summary" ? (
+              staffSummaryData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                  <AlertCircle className="h-10 w-10 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">No staff data found</p>
+                    <p className="text-xs text-gray-500 mt-1">There are no tasks available for any staff members.</p>
+                  </div>
+                </div>
+              ) : (
+                <table className="w-full divide-y divide-gray-200 text-left border-collapse">
+                  <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider sticky top-0 z-30">
+                    <tr>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 sticky top-0 border-r border-gray-200">Staff Name</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">D</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">W</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">M</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0 border-l border-gray-200">Total Scheduled</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">Total Completed</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 sticky top-0">Overall %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 text-xs text-gray-700 bg-white">
+                    {staffSummaryData.map((staff, idx) => {
+                      const overallPct = staff.overall.scheduled > 0 ? Math.round((staff.overall.completed / staff.overall.scheduled) * 100) : 0;
+                      const dayPct = staff.day.scheduled > 0 ? Math.round((staff.day.completed / staff.day.scheduled) * 100) : null;
+                      const weekPct = staff.week.scheduled > 0 ? Math.round((staff.week.completed / staff.week.scheduled) * 100) : null;
+                      const monthPct = staff.month.scheduled > 0 ? Math.round((staff.month.completed / staff.month.scheduled) * 100) : null;
+                      
+                      const renderCell = (pct, completed, scheduled, displayType) => {
+                        if (scheduled === 0) return <span className="text-gray-300">—</span>;
+                        let colorClass = "bg-red-50 text-red-700 border-red-200";
+                        if (pct === 100) colorClass = "bg-green-50 text-green-700 border-green-200";
+                        else if (pct > 0) colorClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                        return (
+                          <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
+                            {displayType === "count" ? <span>{completed}/{scheduled}</span> : <span>{pct}%</span>}
+                          </div>
+                        );
+                      };
+
+                      return (
+                        <tr key={idx} className="hover:bg-purple-50 transition-colors duration-150">
+                          <td className="px-4 py-4 font-bold text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                            {staff.name}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {renderCell(dayPct, staff.day.completed, staff.day.scheduled, "count")}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {renderCell(weekPct, staff.week.completed, staff.week.scheduled, "count")}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {renderCell(monthPct, staff.month.completed, staff.month.scheduled, "count")}
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold text-gray-700 border-l border-gray-200 whitespace-nowrap">
+                            {staff.overall.scheduled}
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold text-gray-700 whitespace-nowrap">
+                            {staff.overall.completed}
+                          </td>
+                          <td className="px-4 py-4 text-center whitespace-nowrap bg-purple-50/30">
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span className={`text-xs font-black ${overallPct === 100 ? "text-green-600" : overallPct >= 60 ? "text-blue-600" : "text-red-600"}`}>
+                                {overallPct}%
+                              </span>
+                              <div className="w-20 bg-gray-100 border border-gray-300 rounded-full h-2.5 overflow-hidden shadow-inner">
+                                <div 
+                                  className={`h-full transition-all duration-300 ${overallPct === 100 ? "bg-green-500" : overallPct >= 60 ? "bg-blue-500" : "bg-red-500"}`} 
+                                  style={{ width: `${overallPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
             ) : taskMatrixData.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
                 <AlertCircle className="h-10 w-10 text-gray-400" />
@@ -725,6 +886,9 @@ export default function AllTaskReport() {
                       );
                     })}
                     <th className="px-4 py-3.5 text-center w-24 whitespace-nowrap sticky top-0 bg-gray-50 z-20">Work Count</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20 border-l border-gray-200">D %</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">W %</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">M %</th>
                     <th className="px-4 py-3.5 text-center w-36 whitespace-nowrap sticky top-0 bg-gray-50 z-20">Total % work done</th>
                   </tr>
                 </thead>
@@ -779,17 +943,17 @@ export default function AllTaskReport() {
 
                       {/* Day Column */}
                       <td className="px-3 py-4 text-center whitespace-nowrap">
-                        {renderCellStatus(task, "day")}
+                        {renderCellStatus(task, "day", "count")}
                       </td>
 
                       {/* Week Column */}
                       <td className="px-3 py-4 text-center whitespace-nowrap">
-                        {renderCellStatus(task, "week")}
+                        {renderCellStatus(task, "week", "count")}
                       </td>
 
                       {/* Month Column */}
                       <td className="px-3 py-4 text-center whitespace-nowrap">
-                        {renderCellStatus(task, "month")}
+                        {renderCellStatus(task, "month", "count")}
                       </td>
 
                       {/* Dynamic Weeks Columns */}
@@ -802,6 +966,17 @@ export default function AllTaskReport() {
                       {/* Work Count */}
                       <td className="px-4 py-4 text-center font-bold text-gray-700 whitespace-nowrap">
                         {task.totalCount}
+                      </td>
+
+                      {/* Percent Columns */}
+                      <td className="px-3 py-4 text-center whitespace-nowrap border-l border-gray-100">
+                        {renderCellStatus(task, "day", "percent")}
+                      </td>
+                      <td className="px-3 py-4 text-center whitespace-nowrap">
+                        {renderCellStatus(task, "week", "percent")}
+                      </td>
+                      <td className="px-3 py-4 text-center whitespace-nowrap">
+                        {renderCellStatus(task, "month", "percent")}
                       </td>
 
                       {/* Total % work done */}
@@ -837,22 +1012,56 @@ export default function AllTaskReport() {
                     <tr className="bg-purple-100 font-black text-purple-900 border-t-[3px] border-purple-300">
                       <td className="px-4 py-4 text-center sticky left-0 bg-purple-100 z-10 border-r border-purple-200" style={{ left: 0 }}></td>
                       <td className="px-4 py-4 sticky left-14 bg-purple-100 z-10 border-r border-purple-200" style={{ left: '56px' }}>
-                        TOTAL WEEKLY TASKS
+                        TOTAL COMPLIANCE
                       </td>
-                      <td className="px-3 py-4 text-center"></td>
-                      <td className="px-3 py-4 text-center"></td>
-                      <td className="px-3 py-4 text-center"></td>
+                      
+                      {/* D, W, M Totals (COUNT) */}
+                      {['day', 'week', 'month'].map(colKey => {
+                        const { scheduled, completed } = columnTotals[colKey];
+                        if (scheduled === 0) {
+                          return <td key={`total-count-${colKey}`} className="px-3 py-4 text-center"><span className="text-gray-400">—</span></td>;
+                        }
+                        return (
+                          <td key={`total-count-${colKey}`} className="px-3 py-4 text-center whitespace-nowrap">
+                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md border bg-white border-purple-300 text-[10px] font-bold min-w-[55px] shadow-sm">
+                              <span>{completed}/{scheduled}</span>
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      {/* Week Totals */}
                       {uniqueWeeks.map(weekKey => {
-                        const { scheduled, completed } = weekTotals[weekKey];
+                        const { scheduled, completed } = columnTotals[weekKey];
+                        if (scheduled === 0) return <td key={`total-${weekKey}`} className="px-3 py-4 text-center"><span className="text-gray-400">—</span></td>;
+                        const pct = Math.round((completed / scheduled) * 100);
                         return (
                           <td key={`total-${weekKey}`} className="px-3 py-4 text-center whitespace-nowrap">
-                            <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-md border bg-white border-purple-300 text-[10px] min-w-[55px] shadow-sm">
-                              {completed}/{scheduled}
+                            <div className="inline-flex flex-col items-center justify-center px-2 py-1 rounded-md border bg-white border-purple-300 text-[10px] min-w-[55px] shadow-sm">
+                              <span>{completed}/{scheduled}</span>
+                              <span className={`text-[9px] ${pct === 100 ? 'text-green-600' : pct > 0 ? 'text-indigo-600' : 'text-red-600'}`}>{pct}%</span>
                             </div>
                           </td>
                         );
                       })}
                       <td className="px-4 py-4 text-center"></td>
+
+                      {/* D, W, M Totals (PERCENT) */}
+                      {['day', 'week', 'month'].map(colKey => {
+                        const { scheduled, completed } = columnTotals[colKey];
+                        if (scheduled === 0) {
+                          return <td key={`total-pct-${colKey}`} className="px-3 py-4 text-center border-l border-gray-200/50"><span className="text-gray-400">—</span></td>;
+                        }
+                        const pct = Math.round((completed / scheduled) * 100);
+                        const colorClass = pct === 100 ? 'text-green-600 border-green-300' : pct > 0 ? 'text-indigo-600 border-indigo-300' : 'text-red-600 border-red-300';
+                        return (
+                          <td key={`total-pct-${colKey}`} className={`px-3 py-4 text-center whitespace-nowrap ${colKey === 'day' ? 'border-l border-gray-200/50' : ''}`}>
+                            <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md border bg-white ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
+                              <span>{pct}%</span>
+                            </div>
+                          </td>
+                        );
+                      })}
                       <td className="px-4 py-4 text-center"></td>
                     </tr>
                   )}
