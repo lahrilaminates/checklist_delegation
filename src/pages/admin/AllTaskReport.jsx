@@ -768,15 +768,15 @@ export default function AllTaskReport() {
                 </div>
               ) : (
                 <table className="w-full divide-y divide-gray-200 text-left border-collapse">
-                  <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider sticky top-0 z-30">
+                  <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider md:sticky top-0 z-30">
                     <tr>
-                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 sticky top-0 border-r border-gray-200">Staff Name</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">D</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">W</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">M</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0 border-l border-gray-200">Total Scheduled</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 sticky top-0">Total Completed</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 sticky top-0">Overall %</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Staff Name</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">D</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">W</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">M</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0 border-l border-gray-200">Total Scheduled</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">Total Completed</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 md:sticky top-0">Overall %</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 text-xs text-gray-700 bg-white">
@@ -855,23 +855,23 @@ export default function AllTaskReport() {
               </div>
             ) : (
               <table className="w-full divide-y divide-gray-200 text-left border-collapse min-w-[1200px]">
-                <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider sticky top-0 z-30">
+                <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider md:sticky top-0 z-30">
                   <tr>
                     <th 
-                      className="px-4 py-3.5 text-center w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap sticky left-0 top-0 bg-gray-50 z-40 border-r border-gray-200"
+                      className="px-4 py-3.5 text-center w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap md:sticky left-0 top-0 bg-gray-50 z-40 border-r border-gray-200"
                       style={{ left: 0 }}
                     >
                       Sr. No.
                     </th>
                     <th 
-                      className="px-4 py-3.5 min-w-[280px] max-w-[400px] sticky left-14 top-0 bg-gray-50 z-40 border-r border-gray-200"
+                      className="px-4 py-3.5 min-w-[280px] max-w-[400px] md:sticky left-14 top-0 bg-gray-50 z-40 border-r border-gray-200"
                       style={{ left: '56px' }}
                     >
                       Work (task Description)
                     </th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">D</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">W</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">M</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">D</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">W</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">M</th>
                     {uniqueWeeks.map(weekKey => {
                       const match = weekKey.match(/^(\d{4})-W(\d{2})/);
                       const year = match ? match[1] : "";
@@ -879,17 +879,17 @@ export default function AllTaskReport() {
                       return (
                         <th 
                           key={`header-week-${weekKey}`} 
-                          className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20"
+                          className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20"
                         >
                           W{weekNum} ({year})
                         </th>
                       );
                     })}
-                    <th className="px-4 py-3.5 text-center w-24 whitespace-nowrap sticky top-0 bg-gray-50 z-20">Work Count</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20 border-l border-gray-200">D %</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">W %</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap sticky top-0 bg-gray-50 z-20">M %</th>
-                    <th className="px-4 py-3.5 text-center w-36 whitespace-nowrap sticky top-0 bg-gray-50 z-20">Total % work done</th>
+                    <th className="px-4 py-3.5 text-center w-24 whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">Work Count</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20 border-l border-gray-200">D %</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">W %</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">M %</th>
+                    <th className="px-4 py-3.5 text-center w-36 whitespace-nowrap md:sticky top-0 bg-gray-50 z-20">Total % work done</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 text-xs text-gray-700 bg-white">
@@ -899,13 +899,13 @@ export default function AllTaskReport() {
                       className="group hover:bg-purple-50 transition-colors duration-150"
                     >
                       <td 
-                        className="px-4 py-4 text-center font-bold text-gray-400 w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap sticky left-0 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200"
+                        className="px-4 py-4 text-center font-bold text-gray-400 w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap md:sticky left-0 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200"
                         style={{ left: 0 }}
                       >
                         {idx + 1}
                       </td>
                       <td 
-                        className="px-4 py-4 min-w-[280px] max-w-[400px] sticky left-14 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200 whitespace-normal break-words"
+                        className="px-4 py-4 min-w-[280px] max-w-[400px] md:sticky left-14 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200 whitespace-normal break-words"
                         style={{ left: '56px' }}
                       >
                         <div className="space-y-1">
@@ -1010,8 +1010,8 @@ export default function AllTaskReport() {
                   {/* Summary Row */}
                   {taskMatrixData.length > 0 && (
                     <tr className="bg-purple-100 font-black text-purple-900 border-t-[3px] border-purple-300">
-                      <td className="px-4 py-4 text-center sticky left-0 bg-purple-100 z-10 border-r border-purple-200" style={{ left: 0 }}></td>
-                      <td className="px-4 py-4 sticky left-14 bg-purple-100 z-10 border-r border-purple-200" style={{ left: '56px' }}>
+                      <td className="px-4 py-4 text-center md:sticky left-0 bg-purple-100 z-10 border-r border-purple-200" style={{ left: 0 }}></td>
+                      <td className="px-4 py-4 md:sticky left-14 bg-purple-100 z-10 border-r border-purple-200" style={{ left: '56px' }}>
                         TOTAL COMPLIANCE
                       </td>
                       
