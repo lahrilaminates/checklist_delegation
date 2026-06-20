@@ -23,6 +23,7 @@ import AdminDataPage from "./pages/admin/admin-data-page"
 import AccountDataPage from "./pages/delegation"
 import AdminDelegationTask from "./pages/delegation-data"
 import AllTasks from "./pages/admin/AllTasks"
+import AllTaskReport from "./pages/admin/AllTaskReport"
 import HolidayListPage from "./pages/admin/HolidayListPage"         // New
 import WorkingDayCalendarPage from "./pages/admin/WorkingDayCalendarPage" // New
 import AdminApprovalPage from "./pages/admin/AdminApprovalPage" // New
@@ -161,6 +162,15 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <AllTasks />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/dashboard/all-task"
+                        element={
+                            <ProtectedRoute>
+                                <AllTaskReport />
                             </ProtectedRoute>
                         }
                     />

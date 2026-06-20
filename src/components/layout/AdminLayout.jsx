@@ -202,6 +202,13 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode, showLa
       badge: notifications.filter(n => !n.isRead).length || null,
     },
     {
+      href: "/dashboard/all-task",
+      label: "All Task",
+      icon: ClipboardList,
+      active: location.pathname === "/dashboard/all-task",
+      showFor: ["admin", "HOD", "user"],
+    },
+    {
       href: "/dashboard/quick-task",
       label: "Quick Task",
       icon: Zap,
