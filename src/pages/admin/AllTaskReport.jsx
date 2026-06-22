@@ -8,8 +8,10 @@ import {
   Loader2, 
   AlertCircle,
   Settings,
-  X
+  X,
+  Download
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const parseJsonIfNeeded = (val) => {
   if (typeof val === 'string' && val.trim().startsWith('{')) {
@@ -583,6 +585,141 @@ export default function AllTaskReport() {
     return Object.values(staffMap).sort((a, b) => a.name.localeCompare(b.name));
   }, [checklistTasks, activeTab, staffList, usersMap]);
 
+  // Handle Export to Excel
+  const handleExportToExcel = () => {
+    let reportPeriodText = "Report Period: ";
+    if (dateFilterMode === "month") {
+      reportPeriodText += selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months";
+    } else if (dateFilterMode === "date") {
+      reportPeriodText += selectedDate ? new Date(selectedDate).toLocaleString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "All Dates";
+    } else {
+      reportPeriodText += "All Time";
+    }
+
+    let titleText = "";
+    if (activeTab === "summary") {
+      titleText = `Staff Summary Report | ${reportPeriodText}`;
+    } else {
+      titleText = `Staff: ${selectedStaff} | ${reportPeriodText}`;
+    }
+
+    if (activeTab === "summary") {
+      const exportData = staffSummaryData.map((staff, idx) => {
+        const overallPct = staff.overall.scheduled > 0 ? Math.round((staff.overall.completed / staff.overall.scheduled) * 100) : 0;
+        return {
+          "S.no": idx + 1,
+          "Employee Name": staff.name,
+          "Designation": staff.designation || "—",
+          "Reporting Manager": staff.reported_by || "—",
+          "Average %": `${overallPct}%`
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData, { origin: "A3" });
+      XLSX.utils.sheet_add_aoa(ws, [[titleText]], { origin: "A1" });
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+
+      if (exportData.length > 0) {
+        const cols = Object.keys(exportData[0]).map(key => ({
+          wch: Math.max(key.length, ...exportData.map(row => String(row[key] || "").length)) + 2
+        }));
+        ws["!cols"] = cols;
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "TaskReport");
+      XLSX.writeFile(wb, "TaskReport.xlsx");
+    } else {
+      // matrix tab
+      const headers = [
+        "Sr. No.", 
+        "Work (Task Description)", 
+        "Task Details (Type, Dept, Freq)",
+        "D (Completed/Total)", 
+        "W (Completed/Total)", 
+        "M (Completed/Total)", 
+        ...uniqueWeeks.map(wk => {
+           const match = wk.match(/^(\d{4})-W(\d{2})/);
+           return match ? `W${match[2]} (${match[1]})` : wk;
+        }),
+        "Work Count", 
+        "D %", "W %", "M %", "Total % work done"
+      ];
+
+      const exportData = taskMatrixData.map((task, idx) => {
+        const row = {
+          "Sr. No.": idx + 1,
+          "Work (Task Description)": task.description,
+          "Task Details (Type, Dept, Freq)": `${task.type}${task.department ? ` - ${task.department}` : ''} - ${task.frequency}`,
+          "D (Completed/Total)": task.colKey === "day" ? `${task.completedCount}/${task.totalCount}` : "—",
+          "W (Completed/Total)": task.colKey === "week" ? `${task.completedCount}/${task.totalCount}` : "—",
+          "M (Completed/Total)": task.colKey === "month" ? `${task.completedCount}/${task.totalCount}` : "—",
+        };
+
+        uniqueWeeks.forEach((weekKey, i) => {
+          const weeklyOccurrences = task.occurrences.filter(occ => {
+            const idObj = getISOWeekIdentifier(occ.planned_date);
+            return idObj && idObj.key === weekKey;
+          });
+          const scheduled = weeklyOccurrences.length;
+          const completed = weeklyOccurrences.filter(o => o.isCompleted).length;
+          const headerName = headers[6 + i]; // Offset by 6
+          row[headerName] = scheduled > 0 ? `${completed}/${scheduled}` : "—";
+        });
+
+        row["Work Count"] = task.totalCount;
+        row["D %"] = task.colKey === "day" ? `${task.percentDone}%` : "—";
+        row["W %"] = task.colKey === "week" ? `${task.percentDone}%` : "—";
+        row["M %"] = task.colKey === "month" ? `${task.percentDone}%` : "—";
+        row["Total % work done"] = `${task.percentDone}%`;
+
+        return row;
+      });
+
+      // Add Summary Row at the bottom
+      if (taskMatrixData.length > 0) {
+        const summaryRow = {
+          "Sr. No.": "",
+          "Work (Task Description)": "TOTAL COMPLIANCE",
+          "Task Details (Type, Dept, Freq)": "",
+          "D (Completed/Total)": columnTotals.day.scheduled > 0 ? `${columnTotals.day.completed}/${columnTotals.day.scheduled}` : "—",
+          "W (Completed/Total)": columnTotals.week.scheduled > 0 ? `${columnTotals.week.completed}/${columnTotals.week.scheduled}` : "—",
+          "M (Completed/Total)": columnTotals.month.scheduled > 0 ? `${columnTotals.month.completed}/${columnTotals.month.scheduled}` : "—",
+        };
+
+        uniqueWeeks.forEach((weekKey, i) => {
+          const { scheduled, completed } = columnTotals[weekKey];
+          const headerName = headers[6 + i];
+          summaryRow[headerName] = scheduled > 0 ? `${completed}/${scheduled}` : "—";
+        });
+
+        summaryRow["Work Count"] = "";
+        
+        summaryRow["D %"] = columnTotals.day.scheduled > 0 ? `${Math.round((columnTotals.day.completed/columnTotals.day.scheduled)*100)}%` : "—";
+        summaryRow["W %"] = columnTotals.week.scheduled > 0 ? `${Math.round((columnTotals.week.completed/columnTotals.week.scheduled)*100)}%` : "—";
+        summaryRow["M %"] = columnTotals.month.scheduled > 0 ? `${Math.round((columnTotals.month.completed/columnTotals.month.scheduled)*100)}%` : "—";
+        summaryRow["Total % work done"] = "";
+
+        exportData.push(summaryRow);
+      }
+
+      const ws = XLSX.utils.json_to_sheet(exportData, { header: headers, origin: "A3" });
+      XLSX.utils.sheet_add_aoa(ws, [[titleText]], { origin: "A1" });
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+
+      if (exportData.length > 0) {
+        const cols = headers.map(key => ({
+          wch: Math.max(key.length, ...exportData.map(row => String(row[key] || "").length)) + 2
+        }));
+        ws["!cols"] = cols;
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "TaskReport");
+      XLSX.writeFile(wb, "TaskReport.xlsx");
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6 max-w-[1600px] mx-auto p-2 sm:p-4">
@@ -601,6 +738,15 @@ export default function AllTaskReport() {
                 Complete task status matrix grouped by frequency and staff doer
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportToExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors"
+            >
+              <Download size={16} />
+              Export to Excel
+            </button>
           </div>
         </div>
 
