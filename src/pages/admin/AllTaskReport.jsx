@@ -27,6 +27,7 @@ export default function AllTaskReport() {
   const [role, setRole] = useState("");
   const [username, setUsername] = useState("");
   const [staffList, setStaffList] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
   const [selectedStaff, setSelectedStaff] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -67,14 +68,18 @@ export default function AllTaskReport() {
           // Admin can see all active users
           const { data, error } = await supabase
             .from("users")
-            .select("user_name")
-            .eq("status", "active")
+            .select("user_name, Designation, reported_by")
             .order("user_name", { ascending: true });
           
           if (error) throw error;
           
           const names = data.map(u => u.user_name).filter(Boolean);
+          const uMap = {};
+          data.forEach(u => {
+            if (u.user_name) uMap[u.user_name] = { designation: u.Designation || u.designation, reported_by: u.reported_by };
+          });
           setStaffList(names);
+          setUsersMap(uMap);
           // Default selection to current user if present, or first staff
           if (names.includes(username)) {
             setSelectedStaff(username);
@@ -85,20 +90,36 @@ export default function AllTaskReport() {
           // HOD can see themselves and their reports
           const { data: reports, error } = await supabase
             .from("users")
-            .select("user_name")
-            .eq("reported_by", username)
-            .eq("status", "active");
+            .select("user_name, Designation, reported_by")
+            .eq("reported_by", username);
 
           if (error) throw error;
 
           const reportNames = reports ? reports.map(r => r.user_name).filter(Boolean) : [];
           // Include HOD themselves in the list
           const combined = Array.from(new Set([username, ...reportNames])).sort();
+          const uMap = {};
+          if (reports) {
+            reports.forEach(u => {
+              if (u.user_name) uMap[u.user_name] = { designation: u.Designation || u.designation, reported_by: u.reported_by };
+            });
+          }
+          const { data: hodData } = await supabase.from("users").select("Designation, reported_by").eq("user_name", username).single();
+          if (hodData) {
+            uMap[username] = { designation: hodData.Designation || hodData.designation, reported_by: hodData.reported_by };
+          }
           setStaffList(combined);
+          setUsersMap(uMap);
           setSelectedStaff(username);
         } else {
           // Regular user can only see themselves
+          const { data: userData } = await supabase.from("users").select("Designation, reported_by").eq("user_name", username).single();
+          const uMap = {};
+          if (userData) {
+            uMap[username] = { designation: userData.Designation || userData.designation, reported_by: userData.reported_by };
+          }
           setStaffList([username]);
+          setUsersMap(uMap);
           setSelectedStaff(username);
         }
       } catch (err) {
@@ -538,9 +559,8 @@ export default function AllTaskReport() {
     staffList.forEach(name => {
       staffMap[name] = {
         name,
-        day: { scheduled: 0, completed: 0 },
-        week: { scheduled: 0, completed: 0 },
-        month: { scheduled: 0, completed: 0 },
+        designation: usersMap[name]?.designation || '',
+        reported_by: usersMap[name]?.reported_by || '',
         overall: { scheduled: 0, completed: 0 },
       };
     });
@@ -549,8 +569,6 @@ export default function AllTaskReport() {
       const staffName = parseJsonIfNeeded(task.name || task.doer_name || task.assigned_person) || "";
       if (!staffName || !staffMap[staffName]) return;
 
-      const freqCol = getFrequencyColumn(task.frequency);
-      
       const statusLower = task.status?.toLowerCase() || "";
       const isCompleted = task.submission_date !== null || 
                           statusLower === "yes" || 
@@ -560,21 +578,10 @@ export default function AllTaskReport() {
 
       staffMap[staffName].overall.scheduled += 1;
       if (isCompleted) staffMap[staffName].overall.completed += 1;
-
-      if (freqCol === "day") {
-        staffMap[staffName].day.scheduled += 1;
-        if (isCompleted) staffMap[staffName].day.completed += 1;
-      } else if (freqCol === "week") {
-        staffMap[staffName].week.scheduled += 1;
-        if (isCompleted) staffMap[staffName].week.completed += 1;
-      } else if (freqCol === "month") {
-        staffMap[staffName].month.scheduled += 1;
-        if (isCompleted) staffMap[staffName].month.completed += 1;
-      }
     });
 
     return Object.values(staffMap).sort((a, b) => a.name.localeCompare(b.name));
-  }, [checklistTasks, activeTab, staffList]);
+  }, [checklistTasks, activeTab, staffList, usersMap]);
 
   return (
     <AdminLayout>
@@ -770,53 +777,30 @@ export default function AllTaskReport() {
                 <table className="w-full divide-y divide-gray-200 text-left border-collapse">
                   <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider md:sticky top-0 z-30">
                     <tr>
-                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Staff Name</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">D</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">W</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">M</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0 border-l border-gray-200">Total Scheduled</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0">Total Completed</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 md:sticky top-0">Overall %</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">S.no</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Employee Name</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Designation</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Reporting Manager</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 md:sticky top-0">Average %</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 text-xs text-gray-700 bg-white">
                     {staffSummaryData.map((staff, idx) => {
                       const overallPct = staff.overall.scheduled > 0 ? Math.round((staff.overall.completed / staff.overall.scheduled) * 100) : 0;
-                      const dayPct = staff.day.scheduled > 0 ? Math.round((staff.day.completed / staff.day.scheduled) * 100) : null;
-                      const weekPct = staff.week.scheduled > 0 ? Math.round((staff.week.completed / staff.week.scheduled) * 100) : null;
-                      const monthPct = staff.month.scheduled > 0 ? Math.round((staff.month.completed / staff.month.scheduled) * 100) : null;
-                      
-                      const renderCell = (pct, completed, scheduled, displayType) => {
-                        if (scheduled === 0) return <span className="text-gray-300">—</span>;
-                        let colorClass = "bg-red-50 text-red-700 border-red-200";
-                        if (pct === 100) colorClass = "bg-green-50 text-green-700 border-green-200";
-                        else if (pct > 0) colorClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
-                        return (
-                          <div className={`inline-flex items-center justify-center px-2 py-1 rounded-md border ${colorClass} text-[10px] font-bold min-w-[55px] shadow-sm`}>
-                            {displayType === "count" ? <span>{completed}/{scheduled}</span> : <span>{pct}%</span>}
-                          </div>
-                        );
-                      };
 
                       return (
                         <tr key={idx} className="hover:bg-purple-50 transition-colors duration-150">
                           <td className="px-4 py-4 font-bold text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                            {idx + 1}
+                          </td>
+                          <td className="px-4 py-4 font-bold text-gray-900 border-r border-gray-200 whitespace-nowrap">
                             {staff.name}
                           </td>
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {renderCell(dayPct, staff.day.completed, staff.day.scheduled, "count")}
+                          <td className="px-4 py-4 text-gray-700 border-r border-gray-200 whitespace-nowrap">
+                            {staff.designation || "—"}
                           </td>
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {renderCell(weekPct, staff.week.completed, staff.week.scheduled, "count")}
-                          </td>
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {renderCell(monthPct, staff.month.completed, staff.month.scheduled, "count")}
-                          </td>
-                          <td className="px-4 py-4 text-center font-bold text-gray-700 border-l border-gray-200 whitespace-nowrap">
-                            {staff.overall.scheduled}
-                          </td>
-                          <td className="px-4 py-4 text-center font-bold text-gray-700 whitespace-nowrap">
-                            {staff.overall.completed}
+                          <td className="px-4 py-4 text-gray-700 border-r border-gray-200 whitespace-nowrap">
+                            {staff.reported_by || "—"}
                           </td>
                           <td className="px-4 py-4 text-center whitespace-nowrap bg-purple-50/30">
                             <div className="flex flex-col items-center gap-1.5">

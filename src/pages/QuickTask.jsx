@@ -1270,28 +1270,7 @@ export default function QuickTask() {
               </div>
             )}
 
-            {/* Task Date Status Filter Pills */}
-            <div className="flex items-center gap-1">
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'overdue', label: 'Overdue' },
-                { id: 'today', label: 'Today' },
-                { id: 'upcoming', label: 'Upcoming' },
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setDateFilter(f.id)}
-                  className={`px-3 py-1.5 text-[11px] font-black rounded-xl border transition-all ${
-                    dateFilter === f.id
-                      ? f.id === 'overdue' ? 'bg-red-500 text-white border-red-500'
-                        : f.id === 'today' ? 'bg-green-500 text-white border-green-500'
-                        : f.id === 'upcoming' ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-purple-600 text-white border-purple-600'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}
-                >{f.label}</button>
-              ))}
-            </div>
+
 
             {/* Clear filters */}
             {(userFilter !== 'all' || dateFilter !== 'all' || searchTerm) && (
