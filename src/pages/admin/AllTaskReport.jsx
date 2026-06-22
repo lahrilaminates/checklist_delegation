@@ -640,7 +640,7 @@ export default function AllTaskReport() {
         "M (Completed/Total)", 
         ...uniqueWeeks.map(wk => {
            const match = wk.match(/^(\d{4})-W(\d{2})/);
-           return match ? `W${match[2]} (${match[1]})` : wk;
+           return match ? `Week${match[2]} (${match[1]})` : wk;
         }),
         "Work Count", 
         "D %", "W %", "M %", "Total % work done"
@@ -1011,7 +1011,7 @@ export default function AllTaskReport() {
                           key={`header-week-${weekKey}`} 
                           className="px-3 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-20"
                         >
-                          W{weekNum} ({year})
+                          Week{weekNum} ({year})
                         </th>
                       );
                     })}
