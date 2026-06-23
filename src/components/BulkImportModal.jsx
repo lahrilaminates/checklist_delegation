@@ -84,10 +84,17 @@ export default function BulkImportModal({ isOpen, onClose, onImportSuccess }) {
       // 2. Fetch Assigners
       const { data: assignFromData } = await supabase
         .from("assign_from")
-        .select("name, given_by, value");
+        .select("name");
       
       const assigners = (assignFromData || []).map(item => {
-        return item.name || item.given_by || item.value || "";
+        let name = item.name || "";
+        if (typeof name === 'string' && name.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(name);
+            name = parsed.given_by || parsed.name || name;
+          } catch (e) { }
+        }
+        return name;
       }).filter(v => v.trim() !== "");
       
       const currentUser = localStorage.getItem("user-name") || "";
