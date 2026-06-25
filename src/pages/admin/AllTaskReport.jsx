@@ -336,7 +336,8 @@ export default function AllTaskReport() {
     const freq = (frequency || "").toLowerCase().trim();
     if (freq === "daily" || freq === "alternate day" || freq === "alternate-day") return "day";
     if (freq === "weekly") return "week";
-    if (freq === "monthly" || freq === "quarterly" || freq === "half yearly" || freq === "half-yearly" || freq === "yearly") return "month";
+    if (freq === "monthly" || freq === "quarterly" || freq === "half yearly" || freq === "half-yearly") return "month";
+    if (freq === "yearly") return "year";
     if (freq === "fortnight" || freq === "15") return "15";
     if (freq.includes("15 (weekly)") || freq.includes("15 weekly")) return "15_weekly";
     if (freq === "end of 1st week" || freq === "end-of-1st-week") return "week_1";
@@ -419,6 +420,7 @@ export default function AllTaskReport() {
       day: { scheduled: 0, completed: 0 },
       week: { scheduled: 0, completed: 0 },
       month: { scheduled: 0, completed: 0 },
+      year: { scheduled: 0, completed: 0 },
       fifteen: { scheduled: 0, completed: 0 },
       days: {}
     };
@@ -431,8 +433,11 @@ export default function AllTaskReport() {
         totals.week.scheduled += task.totalCount;
         totals.week.completed += task.completedCount;
       } else if (task.colKey === "month") {
-        totals.month.scheduled += task.totalCount;
-        totals.month.completed += task.completedCount;
+         totals.month.scheduled += task.totalCount;
+         totals.month.completed += task.completedCount;
+      } else if (task.colKey === "year") {
+         totals.year.scheduled += task.totalCount;
+         totals.year.completed += task.completedCount;
       } else if (task.colKey === "15" || task.colKey === "15_weekly") {
         totals.fifteen.scheduled += task.totalCount;
         totals.fifteen.completed += task.completedCount;
@@ -546,7 +551,7 @@ export default function AllTaskReport() {
       const headers = [
         "S.No", 
         "Work", 
-        "D", "W", "M", "15"
+        "D", "W", "M", "Y", "15"
       ];
       daysArray.forEach(d => headers.push(d.toString()));
       headers.push("Work Count");
@@ -556,10 +561,11 @@ export default function AllTaskReport() {
         const row = {
           "S.No": idx + 1,
           "Work": task.description,
-          "D": task.colKey === "day" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
-          "W": task.colKey === "week" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
-          "M": task.colKey === "month" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
-          "15": (task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? "✓" : "✗") : "—",
+          "D": task.colKey === "day" ? (task.percentDone === 100 ? "✓" : "") : "—",
+          "W": task.colKey === "week" ? (task.percentDone === 100 ? "✓" : "") : "—",
+          "M": task.colKey === "month" ? (task.percentDone === 100 ? "✓" : "") : "—",
+          "Y": task.colKey === "year" ? (task.percentDone === 100 ? "✓" : "") : "—",
+          "15": (task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? "✓" : "") : "—",
         };
         
         daysArray.forEach(d => {
@@ -568,7 +574,7 @@ export default function AllTaskReport() {
               row[d.toString()] = "";
            } else {
               const allCompleted = occs.every(c => c);
-              row[d.toString()] = allCompleted ? "✓" : "✗";
+              row[d.toString()] = allCompleted ? "✓" : "";
            }
         });
 
@@ -585,6 +591,7 @@ export default function AllTaskReport() {
           "D": columnTotals.day.scheduled > 0 && columnTotals.day.scheduled === columnTotals.day.completed ? "✓" : "",
           "W": columnTotals.week.scheduled > 0 && columnTotals.week.scheduled === columnTotals.week.completed ? "✓" : "",
           "M": columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? "✓" : "",
+          "Y": columnTotals.year.scheduled > 0 && columnTotals.year.scheduled === columnTotals.year.completed ? "✓" : "",
           "15": columnTotals.fifteen.scheduled > 0 && columnTotals.fifteen.scheduled === columnTotals.fifteen.completed ? "✓" : "",
         };
 
@@ -906,8 +913,9 @@ export default function AllTaskReport() {
                     </th>
                     <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">D</th>
                     <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">W</th>
-                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">M</th>
-                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">15</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap border-r border-gray-200" title="Month">M</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap border-r border-gray-200" title="Year">Y</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap border-r border-gray-200" title="15 Days">15</th>
                     {daysArray.map(d => (
                        <th key={d} className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">{d}</th>
                     ))}
@@ -938,16 +946,19 @@ export default function AllTaskReport() {
                         </div>
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "day" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "day" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "week" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "week" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "month" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "month" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {(task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "year" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {(task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
                       </td>
 
                       {daysArray.map(d => {
@@ -958,9 +969,7 @@ export default function AllTaskReport() {
                                <span className="text-gray-200">-</span>
                             ) : occs.every(c => c) ? (
                                <span className="text-green-600 font-bold text-lg">✓</span>
-                            ) : (
-                               <span className="text-red-600 font-bold text-lg">✗</span>
-                            )}
+                            ) : null}
                           </td>
                         );
                       })}
@@ -990,6 +999,9 @@ export default function AllTaskReport() {
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
                         {columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {columnTotals.year.scheduled > 0 && columnTotals.year.scheduled === columnTotals.year.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
                         {columnTotals.fifteen.scheduled > 0 && columnTotals.fifteen.scheduled === columnTotals.fifteen.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
