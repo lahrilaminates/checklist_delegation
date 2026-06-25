@@ -147,17 +147,17 @@ export default function QuickTask() {
     const handler = setTimeout(() => {
       if (activeTab === 'checklist') {
         dispatch(resetChecklistPagination());
-        dispatch(uniqueChecklistTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm }));
+        dispatch(uniqueChecklistTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm, userFilter }));
       } else if (activeTab === 'delegation') {
         dispatch(resetDelegationPagination());
-        dispatch(uniqueDelegationTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm }));
+        dispatch(uniqueDelegationTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm, userFilter }));
       } else if (activeTab === 'maintenance') {
         dispatch(maintenanceData({ page: 1, frequency: freqFilter, searchTerm: searchTerm }));
       }
     }, 500);
 
     return () => clearTimeout(handler);
-  }, [dispatch, activeTab, dateFilter, freqFilter, searchTerm]);
+  }, [dispatch, activeTab, dateFilter, freqFilter, searchTerm, userFilter]);
 
 
   // Add this new function
@@ -172,12 +172,18 @@ export default function QuickTask() {
         dispatch(uniqueChecklistTaskData({
           page: checklistPage,
           pageSize: 50,
+          dateFilter,
+          nameFilter: searchTerm,
+          userFilter,
           append: true
         }));
       } else if (activeTab === 'delegation' && delegationHasMore) {
         dispatch(uniqueDelegationTaskData({
           page: delegationPage,
           pageSize: 50,
+          dateFilter,
+          nameFilter: searchTerm,
+          userFilter,
           append: true
         }));
       } else if (activeTab === 'maintenance' && maintenanceHasMore) {
@@ -415,11 +421,11 @@ export default function QuickTask() {
 
       // Refresh the data
       if (activeTab === 'checklist') {
-        dispatch(uniqueChecklistTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm }));
+        dispatch(uniqueChecklistTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm, userFilter }));
       } else if (activeTab === 'maintenance') {
         dispatch(maintenanceData({ page: 1, frequency: freqFilter, searchTerm: searchTerm }));
       } else if (activeTab === 'delegation') {
-        dispatch(uniqueDelegationTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm }));
+        dispatch(uniqueDelegationTaskData({ page: 0, pageSize: 50, dateFilter, nameFilter: searchTerm, userFilter }));
       }
 
     } catch (error) {
@@ -1253,9 +1259,7 @@ export default function QuickTask() {
                       }`}
                     >All Users</button>
                     {[...new Set(
-                      (activeTab === 'checklist' ? quickTask : delegationTasks)
-                        .map(t => t.name)
-                        .filter(Boolean)
+                      (users || []).map(u => u.user_name).filter(Boolean)
                     )].sort().map(name => (
                       <button
                         key={name}

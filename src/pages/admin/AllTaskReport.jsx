@@ -356,7 +356,9 @@ export default function AllTaskReport() {
       const finalDesc = desc || "Untitled Task";
       const freq = (task.frequency || "").trim();
       const colKey = getFrequencyColumn(freq);
-      const key = finalDesc + '|' + task._type + '|' + freq;
+      const userName = (task.name || "").trim();
+      const dept = (task.department || "").trim();
+      const key = `${task._type}_${userName}_${dept}_${finalDesc}_${freq}`;
       
       if (!grouped[key]) {
         grouped[key] = {

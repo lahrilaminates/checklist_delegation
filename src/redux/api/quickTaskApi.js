@@ -14,7 +14,7 @@ const parseJsonIfNeeded = (val) => {
 };
 
 // Fetch unique checklist tasks — one row per unique task_description + name combination
-export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all') => {
+export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', userFilter = 'all') => {
   try {
     const FETCH_LIMIT = 10000;
     const role = (localStorage.getItem("role") || "").toLowerCase();
@@ -23,8 +23,7 @@ export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '
     let query = supabase
       .from('checklist')
       .select('*')
-      .is('submission_date', null)
-      .order('task_start_date', { ascending: true })
+      .order('task_start_date', { ascending: false })
       .limit(FETCH_LIMIT);
 
     if (role === 'hod' && username) {
@@ -36,6 +35,10 @@ export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '
       query = query.in('name', reportingUsers);
     } else if (role === 'user' && username) {
       query = query.eq('name', username);
+    }
+
+    if (userFilter && userFilter !== 'all') {
+      query = query.eq('name', userFilter);
     }
 
     if (nameFilter) {
@@ -52,7 +55,7 @@ export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '
     // Deduplicate: keep only first occurrence of each task_description + name combo
     const seen = new Set();
     const uniqueRows = (data || []).filter(row => {
-      const key = `${(row.department || '').trim()}::${(row.task_description || '').trim()}::${(row.name || '').trim()}`;
+      const key = `${(row.department || '').trim()}::${(row.task_description || '').trim()}::${(row.name || '').trim()}::${(row.frequency || '').trim()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -107,7 +110,7 @@ export const fetchChecklistData = async (page = 0, pageSize = 50, nameFilter = '
 };
 
 // Fetch unique delegation tasks — one row per unique task_description + name combination
-export const fetchDelegationData = async (page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all') => {
+export const fetchDelegationData = async (page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', userFilter = 'all') => {
   try {
     const FETCH_LIMIT = 10000;
     const role = (localStorage.getItem("role") || "").toLowerCase();
@@ -116,8 +119,7 @@ export const fetchDelegationData = async (page = 0, pageSize = 50, nameFilter = 
     let query = supabase
       .from('delegation')
       .select('*')
-      .is('submission_date', null)
-      .order('task_start_date', { ascending: true })
+      .order('task_start_date', { ascending: false })
       .limit(FETCH_LIMIT);
 
     if (role === 'hod' && username) {
@@ -129,6 +131,10 @@ export const fetchDelegationData = async (page = 0, pageSize = 50, nameFilter = 
       query = query.in('name', reportingUsers);
     } else if (role === 'user' && username) {
       query = query.eq('name', username);
+    }
+
+    if (userFilter && userFilter !== 'all') {
+      query = query.eq('name', userFilter);
     }
 
     if (nameFilter) {
@@ -145,7 +151,7 @@ export const fetchDelegationData = async (page = 0, pageSize = 50, nameFilter = 
     // Deduplicate: keep only first occurrence of each task_description + name combo
     const seen = new Set();
     const uniqueRows = (data || []).filter(row => {
-      const key = `${(row.department || '').trim()}::${(row.task_description || '').trim()}::${(row.name || '').trim()}`;
+      const key = `${(row.department || '').trim()}::${(row.task_description || '').trim()}::${(row.name || '').trim()}::${(row.frequency || '').trim()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

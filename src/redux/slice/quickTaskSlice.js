@@ -20,16 +20,16 @@ export const fetchUsers = createAsyncThunk(
 
 export const uniqueChecklistTaskData = createAsyncThunk(
   'fetch/checklistTask',
-  async ({ page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', append = false }) => {
-    const result = await fetchChecklistData(page, pageSize, nameFilter, dateFilter);
+  async ({ page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', userFilter = 'all', append = false }) => {
+    const result = await fetchChecklistData(page, pageSize, nameFilter, dateFilter, userFilter);
     return { ...result, append };
   }
 );
 
 export const uniqueDelegationTaskData = createAsyncThunk(
   'fetch/delegationTask',
-  async ({ page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', append = false }) => {
-    const result = await fetchDelegationData(page, pageSize, nameFilter, dateFilter);
+  async ({ page = 0, pageSize = 50, nameFilter = '', dateFilter = 'all', userFilter = 'all', append = false }) => {
+    const result = await fetchDelegationData(page, pageSize, nameFilter, dateFilter, userFilter);
     return { ...result, append };
   }
 );
