@@ -9,7 +9,8 @@ import {
   AlertCircle,
   Settings,
   X,
-  Download
+  Download,
+  Printer
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -38,7 +39,6 @@ export default function AllTaskReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStaffLoading, setIsStaffLoading] = useState(true);
   const [selectedType, setSelectedType] = useState("All");
-  const [selectedFrequency, setSelectedFrequency] = useState("All");
   const [activeTab, setActiveTab] = useState("matrix");
 
   // Set default current month in format YYYY-MM and date YYYY-MM-DD
@@ -347,74 +347,80 @@ export default function AllTaskReport() {
     return null;
   };
 
-  // Flatten tasks to individual occurrences, retaining frequency columns
+  // Group tasks by description and occurrence day
   const taskMatrixData = useMemo(() => {
-    let rows = checklistTasks.map((task, index) => {
+    const grouped = {};
+    checklistTasks.forEach(task => {
       const desc = (task.task_description || task.description || "").trim();
+      const finalDesc = desc || "Untitled Task";
       const freq = (task.frequency || "").trim();
-      const dept = (task.department || "").trim();
+      const colKey = getFrequencyColumn(freq);
+      const key = finalDesc + '|' + task._type + '|' + freq;
+      
+      if (!grouped[key]) {
+        grouped[key] = {
+          description: finalDesc,
+          frequency: freq,
+          colKey,
+          type: task._type,
+          department: task.department || "",
+          totalCount: 0,
+          completedCount: 0,
+          occurrences: {},
+          attachmentUrl: task.image || task.uploaded_image_url || task.image_url || task.instruction_attachment_url
+        };
+      }
 
       const statusLower = task.status?.toLowerCase() || "";
-      const isCompleted = task.submission_date !== null || 
+      const isCompleted = !!task.submission_date || 
                           statusLower === "yes" || 
                           statusLower === "done" || 
                           statusLower === "completed" || 
                           statusLower === "approved";
 
-      const totalCount = 1;
-      const completedCount = isCompleted ? 1 : 0;
-      const percentDone = isCompleted ? 100 : 0;
-      const colKey = getFrequencyColumn(freq);
+      grouped[key].totalCount += 1;
+      if (isCompleted) {
+        grouped[key].completedCount += 1;
+      }
 
-      const attachmentUrl = task.image || task.uploaded_image_url || task.image_url || task.instruction_attachment_url;
+      let day = null;
+      const pDate = task.planned_date;
+      if (pDate) {
+        const datePart = pDate.split("T")[0];
+        const parts = datePart.split("-");
+        if (parts.length === 3) {
+          day = parseInt(parts[2], 10);
+        }
+      }
 
+      if (day !== null) {
+        if (!grouped[key].occurrences[day]) {
+          grouped[key].occurrences[day] = [];
+        }
+        grouped[key].occurrences[day].push(isCompleted);
+      }
+    });
+
+    let rows = Object.values(grouped).map((group, index) => {
       return {
-        ...task,
+        ...group,
         id: index + 1,
-        description: desc,
-        frequency: freq,
-        department: dept,
-        totalCount,
-        completedCount,
-        percentDone,
-        colKey,
-        isCompleted,
-        attachmentUrl,
-        type: task._type
+        percentDone: group.totalCount > 0 ? Math.round((group.completedCount / group.totalCount) * 100) : 0
       };
     });
 
-    // Filter by selectedFrequency
-    rows = rows.filter(row => {
-      if (selectedFrequency === "All") return true;
-      if (selectedFrequency === "Daily") return row.colKey === "day";
-      if (selectedFrequency === "Weekly") return row.colKey === "week";
-      if (selectedFrequency === "Fortnight (15 Days)") return row.colKey === "15";
-      if (selectedFrequency === "15 Days (Weekly)") return row.colKey === "15_weekly";
-      if (selectedFrequency === "Monthly") return row.colKey === "month";
-      if (selectedFrequency === "End of 1st Week") return row.colKey === "week_1";
-      if (selectedFrequency === "End of 2nd Week") return row.colKey === "week_2";
-      if (selectedFrequency === "End of 3rd Week") return row.colKey === "week_3";
-      if (selectedFrequency === "End of 4th Week") return row.colKey === "week_4";
-      if (selectedFrequency === "Ad-hoc") return row.colKey === "adhoc";
-      return true;
-    });
-
-    // Sort by planned_date
-    rows.sort((a, b) => {
-      const dateA = a.planned_date ? new Date(a.planned_date).getTime() : 0;
-      const dateB = b.planned_date ? new Date(b.planned_date).getTime() : 0;
-      return dateA - dateB;
-    });
+    rows.sort((a, b) => a.description.localeCompare(b.description));
 
     return rows;
-  }, [checklistTasks, selectedFrequency]);
+  }, [checklistTasks]);
 
   const columnTotals = useMemo(() => {
     const totals = {
       day: { scheduled: 0, completed: 0 },
       week: { scheduled: 0, completed: 0 },
-      month: { scheduled: 0, completed: 0 }
+      month: { scheduled: 0, completed: 0 },
+      fifteen: { scheduled: 0, completed: 0 },
+      days: {}
     };
 
     taskMatrixData.forEach(task => {
@@ -427,11 +433,36 @@ export default function AllTaskReport() {
       } else if (task.colKey === "month") {
         totals.month.scheduled += task.totalCount;
         totals.month.completed += task.completedCount;
+      } else if (task.colKey === "15" || task.colKey === "15_weekly") {
+        totals.fifteen.scheduled += task.totalCount;
+        totals.fifteen.completed += task.completedCount;
       }
+
+      Object.keys(task.occurrences).forEach(dayStr => {
+        const day = parseInt(dayStr, 10);
+        if (!totals.days[day]) {
+          totals.days[day] = { scheduled: 0, completed: 0 };
+        }
+        const occs = task.occurrences[day];
+        totals.days[day].scheduled += occs.length;
+        totals.days[day].completed += occs.filter(c => c).length;
+      });
     });
 
     return totals;
   }, [taskMatrixData]);
+
+  const daysArray = useMemo(() => {
+    let numDays = 31;
+    if (dateFilterMode === "month" && selectedMonth) {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      numDays = new Date(year, month, 0).getDate();
+    } else if (dateFilterMode === "date" && selectedDate) {
+      const [year, month] = selectedDate.split("-").map(Number);
+      numDays = new Date(year, month, 0).getDate();
+    }
+    return Array.from({ length: numDays }, (_, i) => i + 1);
+  }, [dateFilterMode, selectedMonth, selectedDate]);
 
   // Aggregate stats for all staff members (used in Summary Tab)
   const staffSummaryData = useMemo(() => {
@@ -453,7 +484,7 @@ export default function AllTaskReport() {
       if (!staffName || !staffMap[staffName]) return;
 
       const statusLower = task.status?.toLowerCase() || "";
-      const isCompleted = task.submission_date !== null || 
+      const isCompleted = !!task.submission_date || 
                           statusLower === "yes" || 
                           statusLower === "done" || 
                           statusLower === "completed" || 
@@ -512,31 +543,35 @@ export default function AllTaskReport() {
       XLSX.writeFile(wb, "TaskReport.xlsx");
     } else {
       // matrix tab
-      const showD = selectedFrequency === "All" || selectedFrequency === "Daily" || selectedFrequency === "Ad-hoc";
-      const showW = selectedFrequency === "All" || selectedFrequency === "Weekly" || selectedFrequency.includes("Week");
-      const showM = selectedFrequency === "All" || selectedFrequency === "Monthly" || selectedFrequency.includes("Fortnight") || selectedFrequency.includes("15");
-
       const headers = [
-        "Sr. No.", 
-        "Date",
-        "Work (Task Description)", 
+        "S.No", 
+        "Work", 
+        "D", "W", "M", "15"
       ];
-      if (showD) headers.push("D");
-      if (showW) headers.push("W");
-      if (showM) headers.push("M");
+      daysArray.forEach(d => headers.push(d.toString()));
       headers.push("Work Count");
       headers.push("Completion Percentage");
 
       const exportData = taskMatrixData.map((task, idx) => {
         const row = {
-          "Sr. No.": idx + 1,
-          "Date": task.planned_date ? new Date(task.planned_date).toLocaleDateString("en-IN") : "—",
-          "Work (Task Description)": task.description,
+          "S.No": idx + 1,
+          "Work": task.description,
+          "D": task.colKey === "day" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
+          "W": task.colKey === "week" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
+          "M": task.colKey === "month" ? (task.percentDone === 100 ? "✓" : "✗") : "—",
+          "15": (task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? "✓" : "✗") : "—",
         };
-        if (showD) row["D"] = task.colKey === "day" ? (task.percentDone === 100 ? "✓" : "") : "—";
-        if (showW) row["W"] = task.colKey === "week" ? (task.percentDone === 100 ? "✓" : "") : "—";
-        if (showM) row["M"] = task.colKey === "month" ? (task.percentDone === 100 ? "✓" : "") : "—";
         
+        daysArray.forEach(d => {
+           const occs = task.occurrences[d];
+           if (!occs) {
+              row[d.toString()] = "";
+           } else {
+              const allCompleted = occs.every(c => c);
+              row[d.toString()] = allCompleted ? "✓" : "✗";
+           }
+        });
+
         row["Work Count"] = task.totalCount;
         row["Completion Percentage"] = `${task.percentDone}%`;
         
@@ -545,19 +580,29 @@ export default function AllTaskReport() {
 
       if (taskMatrixData.length > 0) {
         const summaryRow = {
-          "Sr. No.": "",
-          "Date": "",
-          "Work (Task Description)": "TOTAL COMPLIANCE",
+          "S.No": "",
+          "Work": "TOTAL COMPLIANCE",
+          "D": columnTotals.day.scheduled > 0 && columnTotals.day.scheduled === columnTotals.day.completed ? "✓" : "",
+          "W": columnTotals.week.scheduled > 0 && columnTotals.week.scheduled === columnTotals.week.completed ? "✓" : "",
+          "M": columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? "✓" : "",
+          "15": columnTotals.fifteen.scheduled > 0 && columnTotals.fifteen.scheduled === columnTotals.fifteen.completed ? "✓" : "",
         };
-        if (showD) summaryRow["D"] = columnTotals.day.scheduled > 0 && columnTotals.day.scheduled === columnTotals.day.completed ? "✓" : "";
-        if (showW) summaryRow["W"] = columnTotals.week.scheduled > 0 && columnTotals.week.scheduled === columnTotals.week.completed ? "✓" : "";
-        if (showM) summaryRow["M"] = columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? "✓" : "";
+
+        daysArray.forEach(d => {
+           const dayTotal = columnTotals.days[d];
+           if (!dayTotal || dayTotal.scheduled === 0) {
+              summaryRow[d.toString()] = "";
+           } else {
+              summaryRow[d.toString()] = dayTotal.scheduled === dayTotal.completed ? "✓" : `${Math.round((dayTotal.completed / dayTotal.scheduled) * 100)}%`; 
+           }
+        });
         
         let totalScheduled = 0;
         let totalCompleted = 0;
-        if (showD) { totalScheduled += columnTotals.day.scheduled; totalCompleted += columnTotals.day.completed; }
-        if (showW) { totalScheduled += columnTotals.week.scheduled; totalCompleted += columnTotals.week.completed; }
-        if (showM) { totalScheduled += columnTotals.month.scheduled; totalCompleted += columnTotals.month.completed; }
+        taskMatrixData.forEach(t => {
+           totalScheduled += t.totalCount;
+           totalCompleted += t.completedCount;
+        });
         
         summaryRow["Work Count"] = totalScheduled;
         summaryRow["Completion Percentage"] = totalScheduled > 0 ? `${Math.round((totalCompleted/totalScheduled)*100)}%` : "0%";
@@ -582,16 +627,76 @@ export default function AllTaskReport() {
     }
   };
 
-  const showD = selectedFrequency === "All" || selectedFrequency === "Daily" || selectedFrequency === "Ad-hoc";
-  const showW = selectedFrequency === "All" || selectedFrequency === "Weekly" || selectedFrequency.includes("Week");
-  const showM = selectedFrequency === "All" || selectedFrequency === "Monthly" || selectedFrequency.includes("Fortnight") || selectedFrequency.includes("15");
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <AdminLayout>
-      <div className="space-y-6 max-w-[1600px] mx-auto p-2 sm:p-4">
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 5mm; }
+          body * {
+            visibility: hidden;
+          }
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+            background-color: white !important;
+          }
+          #print-area, #print-area * {
+            visibility: visible;
+          }
+          #print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: visible !important;
+          }
+          #print-area div {
+            overflow: visible !important;
+          }
+          #print-area table {
+            width: 100% !important;
+            table-layout: auto !important;
+          }
+          /* Remove styling for a more "Excel" data feel and shrink sizes drastically */
+          #print-area table th, #print-area table td {
+            border: 1px solid #bbb !important;
+            padding: 2px 1px !important;
+            font-size: 8px !important;
+            line-height: 1.1 !important;
+            min-width: 0 !important;
+          }
+          /* Make sure dates/icons stay tight */
+          #print-area th, #print-area td {
+            white-space: nowrap !important;
+          }
+          /* But allow the Work column to wrap normally so it takes up less width */
+          #print-area tr th:nth-child(2),
+          #print-area tr td:nth-child(2) {
+            white-space: normal !important;
+            word-break: break-word !important;
+            min-width: 120px !important;
+            max-width: 250px !important;
+          }
+          #print-area .bg-purple-50 {
+            background-color: transparent !important;
+          }
+          #print-area .shadow-md, #print-area .rounded-lg, #print-area .border-purple-200 {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border: none !important;
+          }
+        `}
+      </style>
+      <div className="space-y-6 max-w-[1600px] mx-auto p-2 sm:p-4 print:p-0 print:space-y-2">
         
-        {/* Page Header (Plain styling, no card/gradient wrapper) */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2">
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 print:hidden">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-purple-600 rounded-xl text-white shadow-sm">
               <ClipboardList size={22} />
@@ -607,6 +712,13 @@ export default function AllTaskReport() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors"
+            >
+              <Printer size={16} />
+              Print Report
+            </button>
+            <button
               onClick={handleExportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors"
             >
@@ -616,8 +728,22 @@ export default function AllTaskReport() {
           </div>
         </div>
 
+        {/* Print Only Header & Table Area */}
+        <div id="print-area">
+          <div className="hidden print:block mb-4 text-center">
+            {activeTab === "summary" ? (
+               <h1 className="text-3xl font-black text-black uppercase tracking-wider">
+                 Staff Summary Report
+               </h1>
+            ) : (
+               <h1 className="text-3xl font-black text-black uppercase tracking-wider">
+                 {selectedStaff}, {dateFilterMode === "month" ? (selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months") : selectedDate}
+               </h1>
+            )}
+          </div>
+
         {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200 gap-6">
+        <div className="flex border-b border-gray-200 gap-6 print:hidden">
           <button
             onClick={() => setActiveTab("matrix")}
             className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
@@ -641,7 +767,7 @@ export default function AllTaskReport() {
         </div>
 
         {/* Filter Section (Plain layout, top-left aligned, direct view) */}
-        <div className="flex flex-wrap items-center gap-4 pb-2">
+        <div className="flex flex-wrap items-center gap-4 pb-2 print:hidden">
           {/* Staff Selector - Hidden in Summary Tab */}
           {activeTab !== "summary" && (
             <div className="w-full sm:w-60">
@@ -685,33 +811,6 @@ export default function AllTaskReport() {
                 className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
               />
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
-            </div>
-          </div>
-
-          {/* Frequency Filter */}
-          <div className="w-full sm:w-48">
-            <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
-              Frequency Filter
-            </label>
-            <div className="relative">
-              <select
-                value={selectedFrequency}
-                onChange={(e) => setSelectedFrequency(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
-              >
-                <option value="All">All Frequencies</option>
-                <option value="Daily">Daily / Alternate Day</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Fortnight (15 Days)">Fortnight (15 Days)</option>
-                <option value="15 Days (Weekly)">15 Days (Weekly)</option>
-                <option value="Monthly">Monthly / Quarterly / Yearly</option>
-                <option value="End of 1st Week">End of 1st Week</option>
-                <option value="End of 2nd Week">End of 2nd Week</option>
-                <option value="End of 3rd Week">End of 3rd Week</option>
-                <option value="End of 4th Week">End of 4th Week</option>
-                <option value="Ad-hoc">Ad-hoc</option>
-              </select>
-              <ClipboardList className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
             </div>
           </div>
         </div>
@@ -798,33 +897,22 @@ export default function AllTaskReport() {
                 </div>
               </div>
             ) : (
-              <table className="w-full divide-y divide-gray-200 text-left border-collapse min-w-[1000px]">
-                <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider md:sticky top-0 z-30">
+              <table className="w-full divide-y divide-gray-200 text-left border-collapse min-w-[1200px] print:min-w-0 print:text-[8px]">
+                <thead className="bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider md:sticky top-0 z-30 print:text-[8px]">
                   <tr>
                     <th className="px-4 py-3.5 text-center w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap md:sticky left-0 top-0 bg-gray-50 z-40 border-r border-gray-200" style={{ left: 0 }}>
-                      Sr. No.
+                      S.No
                     </th>
-                    <th className="px-4 py-3.5 min-w-[140px] whitespace-nowrap md:sticky left-14 top-0 bg-gray-50 z-40 border-r border-gray-200" style={{ left: '56px' }}>
-                      Date
+                    <th className="px-4 py-3.5 min-w-[280px] max-w-[400px] md:sticky top-0 bg-gray-50 z-40 border-r border-gray-200" style={{ left: '56px' }}>
+                      Work
                     </th>
-                    <th className="px-4 py-3.5 min-w-[280px] max-w-[400px] md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
-                      Work (Task Description)
-                    </th>
-                    {showD && (
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
-                        D
-                      </th>
-                    )}
-                    {showW && (
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
-                        W
-                      </th>
-                    )}
-                    {showM && (
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
-                        M
-                      </th>
-                    )}
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">D</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">W</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">M</th>
+                    <th className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">15</th>
+                    {daysArray.map(d => (
+                       <th key={d} className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">{d}</th>
+                    ))}
                     <th className="px-4 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
                       Work Count
                     </th>
@@ -839,10 +927,7 @@ export default function AllTaskReport() {
                       <td className="px-4 py-4 text-center font-bold text-gray-400 w-[56px] min-w-[56px] max-w-[56px] whitespace-nowrap md:sticky left-0 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200" style={{ left: 0 }}>
                         {idx + 1}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap font-medium text-gray-900 md:sticky left-14 bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200" style={{ left: '56px' }}>
-                        {task.planned_date ? new Date(task.planned_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                      </td>
-                      <td className="px-4 py-4 min-w-[280px] max-w-[400px] border-r border-gray-200 whitespace-normal break-words">
+                      <td className="px-4 py-4 min-w-[280px] max-w-[400px] md:sticky bg-white group-hover:bg-purple-50 transition-colors z-10 border-r border-gray-200 whitespace-normal break-words" style={{ left: '56px' }}>
                         <div className="space-y-1.5">
                           <p className="font-bold text-gray-900 leading-relaxed">
                             {task.description}
@@ -854,21 +939,34 @@ export default function AllTaskReport() {
                           )}
                         </div>
                       </td>
-                      {showD && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {task.colKey === "day" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
-                        </td>
-                      )}
-                      {showW && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {task.colKey === "week" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
-                        </td>
-                      )}
-                      {showM && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {task.colKey === "month" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
-                        </td>
-                      )}
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {task.colKey === "day" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {task.colKey === "week" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {task.colKey === "month" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {(task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-red-600 font-bold text-lg">✗</span>) : <span className="text-gray-300">—</span>}
+                      </td>
+
+                      {daysArray.map(d => {
+                        const occs = task.occurrences[d];
+                        return (
+                          <td key={d} className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                            {!occs ? (
+                               <span className="text-gray-200">-</span>
+                            ) : occs.every(c => c) ? (
+                               <span className="text-green-600 font-bold text-lg">✓</span>
+                            ) : (
+                               <span className="text-red-600 font-bold text-lg">✗</span>
+                            )}
+                          </td>
+                        );
+                      })}
+
                       <td className="px-4 py-4 text-center whitespace-nowrap font-bold text-gray-700 border-r border-gray-200">
                         {task.totalCount}
                       </td>
@@ -883,30 +981,39 @@ export default function AllTaskReport() {
                   {/* Summary Row */}
                   {taskMatrixData.length > 0 && (
                     <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold">
-                      <td colSpan={3} className="px-4 py-4 text-right text-gray-900 uppercase tracking-wider text-[10px] md:sticky left-0 z-10 bg-gray-50 border-r border-gray-200">
+                      <td colSpan={2} className="px-4 py-4 text-right text-gray-900 uppercase tracking-wider text-[10px] md:sticky left-0 z-10 bg-gray-50 border-r border-gray-200">
                         TOTAL COMPLIANCE
                       </td>
-                      {showD && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {columnTotals.day.scheduled > 0 && columnTotals.day.scheduled === columnTotals.day.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
-                        </td>
-                      )}
-                      {showW && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {columnTotals.week.scheduled > 0 && columnTotals.week.scheduled === columnTotals.week.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
-                        </td>
-                      )}
-                      {showM && (
-                        <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                          {columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
-                        </td>
-                      )}
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {columnTotals.day.scheduled > 0 && columnTotals.day.scheduled === columnTotals.day.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {columnTotals.week.scheduled > 0 && columnTotals.week.scheduled === columnTotals.week.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {columnTotals.month.scheduled > 0 && columnTotals.month.scheduled === columnTotals.month.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
+                      </td>
+                      <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                        {columnTotals.fifteen.scheduled > 0 && columnTotals.fifteen.scheduled === columnTotals.fifteen.completed ? <span className="text-green-600 font-bold text-lg">✓</span> : null}
+                      </td>
+                      
+                      {daysArray.map(d => {
+                         const dayTotal = columnTotals.days[d];
+                         if (!dayTotal || dayTotal.scheduled === 0) {
+                            return <td key={d} className="px-2 py-4 text-center border-r border-gray-200"></td>;
+                         }
+                         const pct = Math.round((dayTotal.completed / dayTotal.scheduled) * 100);
+                         return (
+                            <td key={d} className="px-2 py-4 text-center border-r border-gray-200">
+                               <span className={`text-[10px] ${pct === 100 ? "text-green-600" : pct >= 60 ? "text-blue-600" : "text-red-600"}`}>{pct}%</span>
+                            </td>
+                         );
+                      })}
+
                       <td className="px-4 py-4 text-center whitespace-nowrap border-r border-gray-200">
                         {(() => {
                           let totalScheduled = 0;
-                          if (showD) { totalScheduled += columnTotals.day.scheduled; }
-                          if (showW) { totalScheduled += columnTotals.week.scheduled; }
-                          if (showM) { totalScheduled += columnTotals.month.scheduled; }
+                          taskMatrixData.forEach(t => totalScheduled += t.totalCount);
                           return totalScheduled;
                         })()}
                       </td>
@@ -915,9 +1022,10 @@ export default function AllTaskReport() {
                           {(() => {
                             let totalScheduled = 0;
                             let totalCompleted = 0;
-                            if (showD) { totalScheduled += columnTotals.day.scheduled; totalCompleted += columnTotals.day.completed; }
-                            if (showW) { totalScheduled += columnTotals.week.scheduled; totalCompleted += columnTotals.week.completed; }
-                            if (showM) { totalScheduled += columnTotals.month.scheduled; totalCompleted += columnTotals.month.completed; }
+                            taskMatrixData.forEach(t => {
+                               totalScheduled += t.totalCount;
+                               totalCompleted += t.completedCount;
+                            });
                             return totalScheduled > 0 ? `${Math.round((totalCompleted/totalScheduled)*100)}%` : "0%";
                           })()}
                         </span>
@@ -928,7 +1036,8 @@ export default function AllTaskReport() {
               </table>
             )}
           </div>
-      </div>
+        </div>
+        </div>
       </div>
     </AdminLayout>
   );
