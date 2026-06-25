@@ -670,18 +670,16 @@ export default function AllTaskReport() {
             font-size: 8px !important;
             line-height: 1.1 !important;
             min-width: 0 !important;
-          }
-          /* Make sure dates/icons stay tight */
-          #print-area th, #print-area td {
+            width: 1% !important; /* Force columns to be as narrow as their content */
             white-space: nowrap !important;
           }
-          /* But allow the Work column to wrap normally so it takes up less width */
+          /* Allow the Work column to wrap normally and expand to fill available space */
           #print-area tr th:nth-child(2),
           #print-area tr td:nth-child(2) {
             white-space: normal !important;
             word-break: break-word !important;
-            min-width: 120px !important;
-            max-width: 250px !important;
+            width: auto !important;
+            min-width: 100px !important;
           }
           #print-area .bg-purple-50 {
             background-color: transparent !important;
@@ -733,11 +731,11 @@ export default function AllTaskReport() {
           <div className="hidden print:block mb-4 text-center">
             {activeTab === "summary" ? (
                <h1 className="text-3xl font-black text-black uppercase tracking-wider">
-                 Staff Summary Report
+                 Task List : Staff Summary
                </h1>
             ) : (
                <h1 className="text-3xl font-black text-black uppercase tracking-wider">
-                 {selectedStaff}, {dateFilterMode === "month" ? (selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months") : selectedDate}
+                 Task List : {selectedStaff} , {dateFilterMode === "month" ? (selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months") : selectedDate}
                </h1>
             )}
           </div>
