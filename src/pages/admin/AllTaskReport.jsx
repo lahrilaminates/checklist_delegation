@@ -415,7 +415,7 @@ export default function AllTaskReport() {
     rows.sort((a, b) => a.description.localeCompare(b.description));
 
     return rows;
-  }, [checklistTasks]);
+  }, [checklistTasks, dateFilterMode, selectedMonth, selectedDate]);
 
   const columnTotals = useMemo(() => {
     const totals = {
@@ -563,11 +563,11 @@ export default function AllTaskReport() {
         const row = {
           "S.No": idx + 1,
           "Work": task.description,
-          "D": task.colKey === "day" ? (task.percentDone === 100 ? "✓" : "") : "—",
-          "W": task.colKey === "week" ? (task.percentDone === 100 ? "✓" : "") : "—",
-          "M": task.colKey === "month" ? (task.percentDone === 100 ? "✓" : "") : "—",
-          "Y": task.colKey === "year" ? (task.percentDone === 100 ? "✓" : "") : "—",
-          "15": (task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? "✓" : "") : "—",
+          "D": task.colKey === "day" ? "✓" : "—",
+          "W": task.colKey === "week" ? "✓" : "—",
+          "M": task.colKey === "month" ? "✓" : "—",
+          "Y": task.colKey === "year" ? "✓" : "—",
+          "15": (task.colKey === "15" || task.colKey === "15_weekly") ? "✓" : "—",
         };
         
         daysArray.forEach(d => {
@@ -948,19 +948,19 @@ export default function AllTaskReport() {
                         </div>
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "day" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "day" ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "week" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "week" ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "month" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "month" ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {task.colKey === "year" ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                        {task.colKey === "year" ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
-                        {(task.colKey === "15" || task.colKey === "15_weekly") ? (task.percentDone === 100 ? <span className="text-green-600 font-bold text-lg">✓</span> : null) : <span className="text-gray-300">—</span>}
+                        {(task.colKey === "15" || task.colKey === "15_weekly") ? <span className="text-green-600 font-bold text-lg">✓</span> : <span className="text-gray-300">—</span>}
                       </td>
 
                       {daysArray.map(d => {
