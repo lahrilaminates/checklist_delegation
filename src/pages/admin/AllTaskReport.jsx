@@ -42,6 +42,7 @@ export default function AllTaskReport() {
   const [isStaffLoading, setIsStaffLoading] = useState(true);
   const [selectedType, setSelectedType] = useState("All");
   const [activeTab, setActiveTab] = useState("matrix");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Set default current month in format YYYY-MM and date YYYY-MM-DD
   useEffect(() => {
@@ -368,7 +369,46 @@ export default function AllTaskReport() {
   // Group tasks by description and occurrence day
   const taskMatrixData = useMemo(() => {
     const grouped = {};
-    checklistTasks.forEach(task => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayStr = `${year}-${month}-${day}`;
+
+    const filteredTasks = checklistTasks.filter(task => {
+      if (statusFilter === "all") return true;
+
+      const statusLower = task.status?.toLowerCase() || "";
+      const isCompleted = !!task.submission_date || 
+                          statusLower === "yes" || 
+                          statusLower === "done" || 
+                          statusLower === "completed" || 
+                          statusLower === "approved";
+
+      if (statusFilter === "completed") {
+        return isCompleted;
+      }
+
+      if (!isCompleted) {
+        const pDate = task.planned_date;
+        const datePart = pDate ? pDate.split("T")[0] : "";
+        const isOverdue = datePart ? (datePart < todayStr) : false;
+
+        if (statusFilter === "pending") {
+          return !isOverdue;
+        }
+        if (statusFilter === "overdue") {
+          return isOverdue;
+        }
+        if (statusFilter === "pending_overdue") {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    filteredTasks.forEach(task => {
       const desc = (task.task_description || task.description || "").trim();
       const finalDesc = desc || "Untitled Task";
       const freq = (task.frequency || "").trim();
@@ -436,7 +476,7 @@ export default function AllTaskReport() {
     rows.sort((a, b) => a.description.localeCompare(b.description));
 
     return rows;
-  }, [checklistTasks, dateFilterMode, selectedMonth, selectedDate, fromDate, toDate]);
+  }, [checklistTasks, dateFilterMode, statusFilter, selectedMonth, selectedDate, fromDate, toDate]);
 
   const columnTotals = useMemo(() => {
     const totals = {
@@ -526,6 +566,13 @@ export default function AllTaskReport() {
   const staffSummaryData = useMemo(() => {
     if (activeTab !== "summary") return [];
     
+    // Get today's local date string YYYY-MM-DD
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayStr = `${year}-${month}-${day}`;
+
     // Group by staff name
     const staffMap = {};
     staffList.forEach(name => {
@@ -534,6 +581,9 @@ export default function AllTaskReport() {
         designation: usersMap[name]?.designation || '',
         reported_by: usersMap[name]?.reported_by || '',
         overall: { scheduled: 0, completed: 0 },
+        completedCount: 0,
+        pendingCount: 0,
+        overdueCount: 0
       };
     });
 
@@ -549,11 +599,45 @@ export default function AllTaskReport() {
                           statusLower === "approved";
 
       staffMap[staffName].overall.scheduled += 1;
-      if (isCompleted) staffMap[staffName].overall.completed += 1;
+      if (isCompleted) {
+        staffMap[staffName].overall.completed += 1;
+        staffMap[staffName].completedCount += 1;
+      } else {
+        const pDate = task.planned_date;
+        const datePart = pDate ? pDate.split("T")[0] : "";
+        const isOverdue = datePart ? (datePart < todayStr) : false;
+
+        if (isOverdue) {
+          staffMap[staffName].overdueCount += 1;
+        } else {
+          staffMap[staffName].pendingCount += 1;
+        }
+      }
     });
 
-    return Object.values(staffMap).sort((a, b) => a.name.localeCompare(b.name));
-  }, [checklistTasks, activeTab, staffList, usersMap]);
+    let result = Object.values(staffMap);
+
+    // Apply status filter on the staff members list
+    if (statusFilter !== "all") {
+      result = result.filter(staff => {
+        if (statusFilter === "completed") {
+          return staff.completedCount > 0;
+        }
+        if (statusFilter === "pending") {
+          return staff.pendingCount > 0;
+        }
+        if (statusFilter === "overdue") {
+          return staff.overdueCount > 0;
+        }
+        if (statusFilter === "pending_overdue") {
+          return staff.pendingCount > 0 || staff.overdueCount > 0;
+        }
+        return true;
+      });
+    }
+
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [checklistTasks, activeTab, staffList, usersMap, statusFilter]);
 
   // Handle Export to Excel
   const handleExportToExcel = () => {
@@ -568,11 +652,17 @@ export default function AllTaskReport() {
       reportPeriodText += "All Time";
     }
 
+    let statusText = "";
+    if (statusFilter === "completed") statusText = " | Status: Completed";
+    else if (statusFilter === "pending") statusText = " | Status: Pending";
+    else if (statusFilter === "overdue") statusText = " | Status: Overdue";
+    else if (statusFilter === "pending_overdue") statusText = " | Status: Pending/Overdue";
+
     let titleText = "";
     if (activeTab === "summary") {
-      titleText = `Staff Summary Report | ${reportPeriodText}`;
+      titleText = `Staff Summary Report | ${reportPeriodText}${statusText}`;
     } else {
-      titleText = `Staff: ${selectedStaff} | ${reportPeriodText}`;
+      titleText = `Staff: ${selectedStaff} | ${reportPeriodText}${statusText}`;
     }
 
     if (activeTab === "summary") {
@@ -583,13 +673,16 @@ export default function AllTaskReport() {
           "Employee Name": staff.name,
           "Designation": staff.designation || "—",
           "Reporting Manager": staff.reported_by || "—",
+          "Completed": staff.completedCount,
+          "Pending": staff.pendingCount,
+          "Overdue": staff.overdueCount,
           "Average %": `${overallPct}%`
         };
       });
 
       const ws = XLSX.utils.json_to_sheet(exportData, { origin: "A3" });
       XLSX.utils.sheet_add_aoa(ws, [[titleText]], { origin: "A1" });
-      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
 
       if (exportData.length > 0) {
         const cols = Object.keys(exportData[0]).map(key => ({
@@ -933,6 +1026,27 @@ export default function AllTaskReport() {
               </div>
             </>
           )}
+
+          {/* Status Filter Selector */}
+          <div className="w-full sm:w-48">
+            <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
+              Task Status
+            </label>
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+              >
+                <option value="all">All Tasks</option>
+                <option value="completed">Completed Tasks</option>
+                <option value="pending">Pending Tasks</option>
+                <option value="overdue">Overdue Tasks</option>
+                <option value="pending_overdue">Pending / Overdue Tasks</option>
+              </select>
+              <Settings className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
+            </div>
+          </div>
         </div>
 
         {/* Matrix Compliance Table */}
@@ -960,6 +1074,9 @@ export default function AllTaskReport() {
                       <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Employee Name</th>
                       <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Designation</th>
                       <th className="px-4 py-3.5 whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Reporting Manager</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Completed</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Pending</th>
+                      <th className="px-4 py-3.5 text-center whitespace-nowrap bg-gray-50 md:sticky top-0 border-r border-gray-200">Overdue</th>
                       <th className="px-4 py-3.5 text-center whitespace-nowrap bg-purple-50 md:sticky top-0">Average %</th>
                     </tr>
                   </thead>
@@ -980,6 +1097,15 @@ export default function AllTaskReport() {
                           </td>
                           <td className="px-4 py-4 text-gray-700 border-r border-gray-200 whitespace-nowrap">
                             {staff.reported_by || "—"}
+                          </td>
+                          <td className="px-4 py-4 text-center font-semibold text-green-600 border-r border-gray-200 whitespace-nowrap">
+                            {staff.completedCount}
+                          </td>
+                          <td className="px-4 py-4 text-center font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap">
+                            {staff.pendingCount}
+                          </td>
+                          <td className="px-4 py-4 text-center font-semibold text-red-600 border-r border-gray-200 whitespace-nowrap">
+                            {staff.overdueCount}
                           </td>
                           <td className="px-4 py-4 text-center whitespace-nowrap bg-purple-50/30">
                             <div className="flex flex-col items-center gap-1.5">
