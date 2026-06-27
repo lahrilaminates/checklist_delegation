@@ -34,7 +34,9 @@ export default function AllTaskReport() {
   const [selectedStaff, setSelectedStaff] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [dateFilterMode, setDateFilterMode] = useState("month"); // 'month', 'date', 'all'
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [dateFilterMode, setDateFilterMode] = useState("month"); // 'month', 'date', 'all', 'custom'
   const [checklistTasks, setChecklistTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStaffLoading, setIsStaffLoading] = useState(true);
@@ -54,6 +56,8 @@ export default function AllTaskReport() {
     const day = String(now.getDate()).padStart(2, "0");
     setSelectedMonth(`${year}-${month}`);
     setSelectedDate(`${year}-${month}-${day}`);
+    setFromDate(`${year}-${month}-01`);
+    setToDate(`${year}-${month}-${day}`);
   }, []);
 
   // Fetch available staff list based on role
@@ -197,7 +201,12 @@ export default function AllTaskReport() {
 
   // Fetch checklist tasks for the selected staff, month, and type
   useEffect(() => {
-    if ((activeTab === "matrix" && !selectedStaff) || (dateFilterMode === "month" && !selectedMonth) || (dateFilterMode === "date" && !selectedDate)) return;
+    if (
+      (activeTab === "matrix" && !selectedStaff) || 
+      (dateFilterMode === "month" && !selectedMonth) || 
+      (dateFilterMode === "date" && !selectedDate) ||
+      (dateFilterMode === "custom" && (!fromDate || !toDate))
+    ) return;
 
     const fetchTasks = async () => {
       setIsLoading(true);
@@ -214,6 +223,9 @@ export default function AllTaskReport() {
         } else if (dateFilterMode === "date") {
           startISO = `${selectedDate}T00:00:00`;
           endISO = `${selectedDate}T23:59:59`;
+        } else if (dateFilterMode === "custom") {
+          startISO = `${fromDate}T00:00:00`;
+          endISO = `${toDate}T23:59:59`;
         } else if (dateFilterMode === "all") {
           // Bounding queries to the year of selectedMonth to fetch all of that year's tasks efficiently without hitting database limit truncations
           const year = selectedMonth ? selectedMonth.split("-")[0] : new Date().getFullYear();
@@ -306,6 +318,11 @@ export default function AllTaskReport() {
             const pDate = task.planned_date || "";
             return pDate.startsWith(selectedDate);
           });
+        } else if (dateFilterMode === "custom") {
+          dateFiltered = fetchedTasks.filter(task => {
+            const pDate = (task.planned_date || "").split("T")[0];
+            return pDate >= fromDate && pDate <= toDate;
+          });
         }
 
         // Deduplicate fetched tasks using their unique ID
@@ -329,7 +346,7 @@ export default function AllTaskReport() {
     };
 
     fetchTasks();
-  }, [selectedStaff, selectedMonth, selectedDate, dateFilterMode, selectedType, activeTab, staffList]);
+  }, [selectedStaff, selectedMonth, selectedDate, fromDate, toDate, dateFilterMode, selectedType, activeTab, staffList]);
 
   // Frequency mapping to columns
   const getFrequencyColumn = (frequency) => {
@@ -386,21 +403,25 @@ export default function AllTaskReport() {
         grouped[key].completedCount += 1;
       }
 
-      let day = null;
+      let occurrenceKey = null;
       const pDate = task.planned_date;
       if (pDate) {
         const datePart = pDate.split("T")[0];
-        const parts = datePart.split("-");
-        if (parts.length === 3) {
-          day = parseInt(parts[2], 10);
+        if (dateFilterMode === "custom") {
+          occurrenceKey = datePart;
+        } else {
+          const parts = datePart.split("-");
+          if (parts.length === 3) {
+            occurrenceKey = parseInt(parts[2], 10);
+          }
         }
       }
 
-      if (day !== null) {
-        if (!grouped[key].occurrences[day]) {
-          grouped[key].occurrences[day] = [];
+      if (occurrenceKey !== null) {
+        if (!grouped[key].occurrences[occurrenceKey]) {
+          grouped[key].occurrences[occurrenceKey] = [];
         }
-        grouped[key].occurrences[day].push(isCompleted);
+        grouped[key].occurrences[occurrenceKey].push(isCompleted);
       }
     });
 
@@ -415,7 +436,7 @@ export default function AllTaskReport() {
     rows.sort((a, b) => a.description.localeCompare(b.description));
 
     return rows;
-  }, [checklistTasks, dateFilterMode, selectedMonth, selectedDate]);
+  }, [checklistTasks, dateFilterMode, selectedMonth, selectedDate, fromDate, toDate]);
 
   const columnTotals = useMemo(() => {
     const totals = {
@@ -446,20 +467,44 @@ export default function AllTaskReport() {
       }
 
       Object.keys(task.occurrences).forEach(dayStr => {
-        const day = parseInt(dayStr, 10);
-        if (!totals.days[day]) {
-          totals.days[day] = { scheduled: 0, completed: 0 };
+        const dayKey = dateFilterMode === "custom" ? dayStr : parseInt(dayStr, 10);
+        if (!totals.days[dayKey]) {
+          totals.days[dayKey] = { scheduled: 0, completed: 0 };
         }
-        const occs = task.occurrences[day];
-        totals.days[day].scheduled += occs.length;
-        totals.days[day].completed += occs.filter(c => c).length;
+        const occs = task.occurrences[dayStr];
+        totals.days[dayKey].scheduled += occs.length;
+        totals.days[dayKey].completed += occs.filter(c => c).length;
       });
     });
 
     return totals;
-  }, [taskMatrixData]);
+  }, [taskMatrixData, dateFilterMode]);
 
   const daysArray = useMemo(() => {
+    if (dateFilterMode === "custom") {
+      if (!fromDate || !toDate) return [];
+      const start = new Date(fromDate);
+      const end = new Date(toDate);
+      const dates = [];
+      let current = new Date(start);
+      let count = 0;
+      while (current <= end && count < 366) {
+        const yyyy = current.getFullYear();
+        const mm = String(current.getMonth() + 1).padStart(2, "0");
+        const dd = String(current.getDate()).padStart(2, "0");
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        dates.push({
+          key: dateStr,
+          label: `${dd}/${mm}`
+        });
+        
+        current.setDate(current.getDate() + 1);
+        count++;
+      }
+      return dates;
+    }
+
     let numDays = 31;
     if (dateFilterMode === "month" && selectedMonth) {
       const [year, month] = selectedMonth.split("-").map(Number);
@@ -468,8 +513,14 @@ export default function AllTaskReport() {
       const [year, month] = selectedDate.split("-").map(Number);
       numDays = new Date(year, month, 0).getDate();
     }
-    return Array.from({ length: numDays }, (_, i) => i + 1);
-  }, [dateFilterMode, selectedMonth, selectedDate]);
+    return Array.from({ length: numDays }, (_, i) => {
+      const d = i + 1;
+      return {
+        key: d,
+        label: d
+      };
+    });
+  }, [dateFilterMode, selectedMonth, selectedDate, fromDate, toDate]);
 
   // Aggregate stats for all staff members (used in Summary Tab)
   const staffSummaryData = useMemo(() => {
@@ -511,6 +562,8 @@ export default function AllTaskReport() {
       reportPeriodText += selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months";
     } else if (dateFilterMode === "date") {
       reportPeriodText += selectedDate ? new Date(selectedDate).toLocaleString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "All Dates";
+    } else if (dateFilterMode === "custom") {
+      reportPeriodText += `${fromDate} to ${toDate}`;
     } else {
       reportPeriodText += "All Time";
     }
@@ -555,7 +608,7 @@ export default function AllTaskReport() {
         "Work", 
         "D", "W", "M", "Y", "15"
       ];
-      daysArray.forEach(d => headers.push(d.toString()));
+      daysArray.forEach(d => headers.push(d.label.toString()));
       headers.push("Work Count");
       headers.push("Completion Percentage");
 
@@ -571,12 +624,12 @@ export default function AllTaskReport() {
         };
         
         daysArray.forEach(d => {
-           const occs = task.occurrences[d];
+           const occs = task.occurrences[d.key];
            if (!occs) {
-              row[d.toString()] = "";
+              row[d.label.toString()] = "";
            } else {
               const allCompleted = occs.every(c => c);
-              row[d.toString()] = allCompleted ? "✓" : "";
+              row[d.label.toString()] = allCompleted ? "✓" : "";
            }
         });
 
@@ -598,11 +651,11 @@ export default function AllTaskReport() {
         };
 
         daysArray.forEach(d => {
-           const dayTotal = columnTotals.days[d];
+           const dayTotal = columnTotals.days[d.key];
            if (!dayTotal || dayTotal.scheduled === 0) {
-              summaryRow[d.toString()] = "";
+              summaryRow[d.label.toString()] = "";
            } else {
-              summaryRow[d.toString()] = dayTotal.scheduled === dayTotal.completed ? "✓" : `${Math.round((dayTotal.completed / dayTotal.scheduled) * 100)}%`; 
+              summaryRow[d.label.toString()] = dayTotal.scheduled === dayTotal.completed ? "✓" : `${Math.round((dayTotal.completed / dayTotal.scheduled) * 100)}%`; 
            }
         });
         
@@ -744,8 +797,14 @@ export default function AllTaskReport() {
                </h1>
             ) : (
                <h1 className="text-3xl font-black text-black uppercase tracking-wider">
-                 Task List : {selectedStaff} , {dateFilterMode === "month" ? (selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months") : selectedDate}
-               </h1>
+                  Task List : {selectedStaff} , {
+                    dateFilterMode === "custom" 
+                      ? `${fromDate} to ${toDate}` 
+                      : dateFilterMode === "month" 
+                        ? (selectedMonth ? new Date(selectedMonth + "-02").toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All Months") 
+                        : selectedDate
+                  }
+                </h1>
             )}
           </div>
 
@@ -805,21 +864,75 @@ export default function AllTaskReport() {
           </div>
           )}
 
-          {/* Month Selector */}
+          {/* Date Filter Mode Selector */}
           <div className="w-full sm:w-48">
             <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
-              Month Selection
+              Filter Mode
             </label>
             <div className="relative">
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
+              <select
+                value={dateFilterMode}
+                onChange={(e) => setDateFilterMode(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
-              />
+              >
+                <option value="month">Month Selection</option>
+                <option value="custom">Date Range Selection</option>
+              </select>
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
             </div>
           </div>
+
+          {/* Month Selector */}
+          {dateFilterMode === "month" && (
+            <div className="w-full sm:w-48">
+              <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
+                Month Selection
+              </label>
+              <div className="relative">
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
+              </div>
+            </div>
+          )}
+
+          {/* Date Range Selectors */}
+          {dateFilterMode === "custom" && (
+            <>
+              <div className="w-full sm:w-48">
+                <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
+                  From Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                  />
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
+                </div>
+              </div>
+              <div className="w-full sm:w-48">
+                <label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1.5">
+                  To Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-purple-200 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                  />
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={14} />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Matrix Compliance Table */}
@@ -898,7 +1011,9 @@ export default function AllTaskReport() {
                         ? "overall" 
                         : dateFilterMode === "date" 
                           ? `on ${selectedDate}` 
-                          : `in ${selectedMonth}`
+                          : dateFilterMode === "custom"
+                            ? `from ${fromDate} to ${toDate}`
+                            : `in ${selectedMonth}`
                     }.
                   </p>
                 </div>
@@ -919,7 +1034,7 @@ export default function AllTaskReport() {
                     <th className="px-2 py-3.5 text-center whitespace-nowrap border-r border-gray-200" title="Year">Y</th>
                     <th className="px-2 py-3.5 text-center whitespace-nowrap border-r border-gray-200" title="15 Days">15</th>
                     {daysArray.map(d => (
-                       <th key={d} className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">{d}</th>
+                       <th key={d.key} className="px-2 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">{d.label}</th>
                     ))}
                     <th className="px-4 py-3.5 text-center whitespace-nowrap md:sticky top-0 bg-gray-50 z-30 border-r border-gray-200">
                       Work Count
@@ -964,9 +1079,9 @@ export default function AllTaskReport() {
                       </td>
 
                       {daysArray.map(d => {
-                        const occs = task.occurrences[d];
+                        const occs = task.occurrences[d.key];
                         return (
-                          <td key={d} className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
+                          <td key={d.key} className="px-2 py-4 text-center whitespace-nowrap border-r border-gray-200">
                             {!occs ? (
                                <span className="text-gray-200">-</span>
                             ) : occs.every(c => c) ? (
@@ -1010,13 +1125,13 @@ export default function AllTaskReport() {
                       </td>
                       
                       {daysArray.map(d => {
-                         const dayTotal = columnTotals.days[d];
+                         const dayTotal = columnTotals.days[d.key];
                          if (!dayTotal || dayTotal.scheduled === 0) {
-                            return <td key={d} className="px-2 py-4 text-center border-r border-gray-200"></td>;
+                            return <td key={d.key} className="px-2 py-4 text-center border-r border-gray-200"></td>;
                          }
                          const pct = Math.round((dayTotal.completed / dayTotal.scheduled) * 100);
                          return (
-                            <td key={d} className="px-2 py-4 text-center border-r border-gray-200">
+                            <td key={d.key} className="px-2 py-4 text-center border-r border-gray-200">
                                <span className={`text-[10px] ${pct === 100 ? "text-green-600" : pct >= 60 ? "text-blue-600" : "text-red-600"}`}>{pct}%</span>
                             </td>
                          );
