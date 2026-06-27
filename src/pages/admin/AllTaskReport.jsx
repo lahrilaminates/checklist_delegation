@@ -629,7 +629,7 @@ export default function AllTaskReport() {
               row[d.label.toString()] = "";
            } else {
               const allCompleted = occs.every(c => c);
-              row[d.label.toString()] = allCompleted ? "✓" : "";
+              row[d.label.toString()] = allCompleted ? "✓" : "✗";
            }
         });
 
@@ -1086,7 +1086,9 @@ export default function AllTaskReport() {
                                <span className="text-gray-200">-</span>
                             ) : occs.every(c => c) ? (
                                <span className="text-green-600 font-bold text-lg">✓</span>
-                            ) : null}
+                            ) : (
+                               <span className="text-red-600 font-bold text-lg">✗</span>
+                            )}
                           </td>
                         );
                       })}
